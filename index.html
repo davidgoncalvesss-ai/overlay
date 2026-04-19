@@ -327,10 +327,9 @@
 <section class="panel">
   <div class="panel-h"><h2>4 · Render</h2></div>
   <div class="render-bar">
-    <select id="format">
-      <option value="mp4" selected>MP4 (TikTok-ready)</option>
-      <option value="webm">WebM (fast)</option>
-    </select>
+    <div id="qualityInfo" style="font-size:12px;color:var(--muted-2);padding:6px 12px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;white-space:nowrap;">
+      MP4 · H.264 · up to 20 Mbps
+    </div>
     <button id="renderBtn" class="primary" disabled>Add videos to start</button>
   </div>
   <div class="progress"><div class="progress-fill" id="pfill"></div></div>
@@ -340,7 +339,10 @@
 <section class="panel hidden" id="resultsPanel">
   <div class="panel-h">
     <h2>Results</h2>
-    <span class="meta" id="resultsMeta"></span>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span class="meta" id="resultsMeta"></span>
+      <button id="zipBtn" class="hidden" style="padding:8px 14px;font-size:12px;">Download all as ZIP</button>
+    </div>
   </div>
   <div class="results-grid" id="rgrid"></div>
 </section>
@@ -349,9 +351,8 @@
 
 <script>
 const videos = [];
+const renderedResults = []; // {blob, name}
 let activeIdx = 0;
-let ffmpeg = null;
-let ffmpegLoading = null;
 let previewRaf = null;
 let dragState = null;
 let nextId = 1;
@@ -817,26 +818,10 @@ async function renderOneVideo(v, s, onProgress) {
   return blobPromise;
 }
 
-async function loadFFmpeg() {
-  if (ffmpeg) return ffmpeg;
-  if (ffmpegLoading) return ffmpegLoading;
-  ffmpegLoading = (async () => {
-    $('status').textContent = 'Loading MP4 encoder (first time only, ~30MB)…';
-    await loadScript('https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js');
-    await loadScript('https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js');
-    const { FFmpeg } = window.FFmpegWASM;
-    const { toBlobURL } = window.FFmpegUtil;
-    const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    const ff = new FFmpeg();
-    await ff.load({
-      coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
-    });
-    ffmpeg = ff;
-    return ff;
-  })();
-  return ffmpegLoading;
-}
+/* ============================================================
+   MP4 ENCODING via WebCodecs + mp4-muxer
+   Native H.264 in the browser. No ffmpeg, no headers, no BS.
+============================================================ */
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     const s = document.createElement('script');
@@ -844,58 +829,207 @@ function loadScript(src) {
     document.head.appendChild(s);
   });
 }
-async function webmToMp4(blob) {
-  const ff = await loadFFmpeg();
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  await ff.writeFile('in.webm', bytes);
-  await ff.exec(['-i', 'in.webm', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-level', '4.0', '-movflags', '+faststart', '-c:a', 'aac', '-b:a', '128k', 'out.mp4']);
-  const data = await ff.readFile('out.mp4');
-  try { await ff.deleteFile('in.webm'); } catch (e) {}
-  try { await ff.deleteFile('out.mp4'); } catch (e) {}
-  return new Blob([data.buffer], { type: 'video/mp4' });
+
+async function loadMp4Muxer() {
+  if (window.Mp4Muxer) return window.Mp4Muxer;
+  if (loadMp4Muxer._p) return loadMp4Muxer._p;
+  loadMp4Muxer._p = loadScript('https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.1/build/mp4-muxer.min.js')
+    .then(() => {
+      if (!window.Mp4Muxer) throw new Error('mp4-muxer global not found');
+      return window.Mp4Muxer;
+    });
+  return loadMp4Muxer._p;
 }
+
+// Quality tiers keyed on pixel count
+function pickMp4Settings(W, H) {
+  const pixels = W * H;
+  if (pixels > 2560 * 1440) return { codec: 'avc1.640033', bitrate: 40_000_000 }; // 4K: Level 5.1
+  if (pixels > 1920 * 1088) return { codec: 'avc1.640032', bitrate: 28_000_000 }; // 1440p: Level 5.0
+  if (pixels > 1280 *  720) return { codec: 'avc1.640028', bitrate: 20_000_000 }; // 1080p: Level 4.0
+  return                        { codec: 'avc1.640020', bitrate: 10_000_000 }; // 720p: Level 3.2
+}
+
+async function renderVideoToMp4(v, s, onProgress) {
+  const Mp4 = await loadMp4Muxer();
+  const { Muxer, ArrayBufferTarget } = Mp4;
+
+  const srcVideo = document.createElement('video');
+  srcVideo.src = v.url;
+  srcVideo.playsInline = true;
+  await new Promise((res, rej) => {
+    srcVideo.addEventListener('loadedmetadata', res, { once: true });
+    srcVideo.addEventListener('error', () => rej(new Error('Could not load video')), { once: true });
+  });
+
+  // H.264 requires even dimensions
+  const W = srcVideo.videoWidth & ~1;
+  const H = srcVideo.videoHeight & ~1;
+  const duration = srcVideo.duration;
+  const fps = 30;
+
+  const { codec, bitrate } = pickMp4Settings(W, H);
+
+  // Verify this config is actually supported before we commit
+  const vSupport = await VideoEncoder.isConfigSupported({ codec, width: W, height: H, bitrate, framerate: fps });
+  if (!vSupport.supported) throw new Error(`VideoEncoder cannot produce ${W}x${H} @ ${codec}`);
+
+  const aConfig = { codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, bitrate: 192_000 };
+  const aSupport = await AudioEncoder.isConfigSupported(aConfig);
+  const audioEnabled = aSupport.supported && 'MediaStreamTrackProcessor' in window;
+
+  // Preload the font so the first frames render with the right glyphs
+  try { await document.fonts.load(`${s.weight} ${(s.fontSizePct / 100) * H}px "${s.font}"`); } catch (e) {}
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d', { alpha: false });
+
+  const muxerCfg = {
+    target: new ArrayBufferTarget(),
+    video: { codec: 'avc', width: W, height: H },
+    fastStart: 'in-memory',
+    firstTimestampBehavior: 'offset',
+  };
+  if (audioEnabled) muxerCfg.audio = { codec: 'aac', sampleRate: 48000, numberOfChannels: 2 };
+  const muxer = new Muxer(muxerCfg);
+
+  let encoderError = null;
+  const videoEncoder = new VideoEncoder({
+    output: (chunk, meta) => { try { muxer.addVideoChunk(chunk, meta); } catch (e) { encoderError = e; } },
+    error: (e) => { encoderError = e; console.error('VideoEncoder:', e); },
+  });
+  videoEncoder.configure({ codec, width: W, height: H, bitrate, framerate: fps });
+
+  let audioEncoder = null;
+  let audioCtx = null;
+  let audioReader = null;
+
+  if (audioEnabled) {
+    audioEncoder = new AudioEncoder({
+      output: (chunk, meta) => { try { muxer.addAudioChunk(chunk, meta); } catch (e) { /* best effort */ } },
+      error: (e) => console.warn('AudioEncoder:', e),
+    });
+    audioEncoder.configure(aConfig);
+
+    try {
+      audioCtx = new AudioContext({ sampleRate: 48000 });
+      const source = audioCtx.createMediaElementSource(srcVideo);
+      const dest = audioCtx.createMediaStreamDestination();
+      source.connect(dest);
+      const aTrack = dest.stream.getAudioTracks()[0];
+      if (aTrack) {
+        const proc = new MediaStreamTrackProcessor({ track: aTrack });
+        audioReader = proc.readable.getReader();
+      }
+    } catch (e) { console.warn('Audio pipeline:', e); }
+  }
+
+  srcVideo.currentTime = 0;
+  try { await srcVideo.play(); }
+  catch (e) { throw new Error('Playback blocked — click the page and try again'); }
+
+  // Pump audio in background
+  const audioPump = (async () => {
+    if (!audioReader || !audioEncoder) return;
+    try {
+      while (true) {
+        const { value, done } = await audioReader.read();
+        if (done) break;
+        try { audioEncoder.encode(value); } catch (e) { /* dropped frame */ }
+        value.close();
+      }
+    } catch (e) { if (e.name !== 'AbortError') console.warn('audio pump:', e); }
+  })();
+
+  // Video frame loop — draw + encode on every rAF
+  let frameNum = 0;
+  let stopped = false;
+
+  await new Promise((resolve) => {
+    const safety = setTimeout(() => { stopped = true; resolve(); }, (duration + 15) * 1000);
+    function tick() {
+      if (stopped || encoderError) { clearTimeout(safety); return resolve(); }
+      try {
+        ctx.drawImage(srcVideo, 0, 0, W, H);
+        drawText(ctx, canvas, v.caption, s);
+        const timestamp = Math.round(srcVideo.currentTime * 1_000_000);
+        const frame = new VideoFrame(canvas, { timestamp });
+        videoEncoder.encode(frame, { keyFrame: frameNum % (fps * 2) === 0 });
+        frame.close();
+        frameNum++;
+      } catch (e) { console.error('frame:', e); }
+
+      if (onProgress && duration) onProgress(Math.min(1, srcVideo.currentTime / duration));
+
+      if (srcVideo.ended || srcVideo.currentTime >= duration - 0.02) {
+        stopped = true; clearTimeout(safety); return resolve();
+      }
+      requestAnimationFrame(tick);
+    }
+    tick();
+  });
+
+  try { srcVideo.pause(); } catch (e) {}
+  if (audioReader) { try { await audioReader.cancel(); } catch (e) {} }
+  await audioPump;
+
+  try { await videoEncoder.flush(); } catch (e) { console.warn('video flush:', e); }
+  if (audioEncoder) { try { await audioEncoder.flush(); } catch (e) { console.warn('audio flush:', e); } }
+  try { videoEncoder.close(); } catch (e) {}
+  if (audioEncoder) { try { audioEncoder.close(); } catch (e) {} }
+  if (audioCtx) { try { await audioCtx.close(); } catch (e) {} }
+
+  if (encoderError) throw encoderError;
+
+  muxer.finalize();
+  return new Blob([muxer.target.buffer], { type: 'video/mp4' });
+}
+
+/* Webm fallback (old browsers without WebCodecs) — kept renderOneVideo from before */
 
 $('renderBtn').addEventListener('click', async () => {
   if (!videos.length) return;
-  const format = $('format').value;
   $('renderBtn').disabled = true;
   $('renderBtn').textContent = 'Rendering…';
   $('resultsPanel').classList.remove('hidden');
   $('rgrid').innerHTML = '';
+  $('zipBtn').classList.add('hidden');
+  renderedResults.length = 0;
   const grid = $('rgrid');
   const pfill = $('pfill');
 
-  if (format === 'mp4') {
-    try { await loadFFmpeg(); }
-    catch (e) { $('status').textContent = 'MP4 unavailable — WebM fallback. ' + e.message; }
+  const hasWebCodecs = 'VideoEncoder' in window && 'AudioEncoder' in window && 'VideoFrame' in window;
+  if (!hasWebCodecs) {
+    $('status').textContent = 'Browser lacks WebCodecs — falling back to WebM. Use Chrome/Edge for MP4.';
   }
 
   let success = 0;
   for (let i = 0; i < videos.length; i++) {
     const v = videos[i];
     $('status').textContent = `Rendering ${i + 1}/${videos.length}: ${v.file.name}`;
-    try {
-      let blob = await renderOneVideo(v, style, (p) => { pfill.style.width = ((i + p) / videos.length) * 100 + '%'; });
-      let ext = 'webm';
-      if (format === 'mp4' && ffmpeg) {
-        $('status').textContent = `Encoding MP4 ${i + 1}/${videos.length}…`;
-        try { blob = await webmToMp4(blob); ext = 'mp4'; } catch (e) { console.error(e); }
-      }
-      const url = URL.createObjectURL(blob);
-      const base = v.file.name.replace(/\.[^.]+$/, '');
-      const slug = (v.caption || 'clip').slice(0, 30).replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'clip';
-      const name = `${base}-${slug}.${ext}`;
+    const onProgress = (p) => { pfill.style.width = ((i + p) / videos.length) * 100 + '%'; };
 
-      const card = document.createElement('div');
-      card.className = 'result-card';
-      card.innerHTML = `
-        <video src="${url}" controls playsinline></video>
-        <div class="txt">${escapeAttr(v.caption || '(no caption)')}</div>
-        <a class="dl" href="${url}" download="${name}">Download .${ext}</a>
-      `;
-      grid.appendChild(card);
-      success++;
-    } catch (err) {
+    let blob, ext, err;
+    try {
+      if (hasWebCodecs) {
+        try {
+          blob = await renderVideoToMp4(v, style, onProgress);
+          ext = 'mp4';
+        } catch (mp4Err) {
+          console.warn('MP4 render failed, falling back to WebM:', mp4Err);
+          $('status').textContent = `MP4 failed (${mp4Err.message}) — WebM fallback ${i + 1}/${videos.length}`;
+          blob = await renderOneVideo(v, style, onProgress);
+          ext = 'webm';
+        }
+      } else {
+        blob = await renderOneVideo(v, style, onProgress);
+        ext = 'webm';
+      }
+    } catch (e) { err = e; }
+
+    if (err) {
       console.error(err);
       const card = document.createElement('div');
       card.className = 'result-card';
@@ -904,14 +1038,96 @@ $('renderBtn').addEventListener('click', async () => {
         <div class="txt">${escapeAttr(v.file.name)}</div>
       `;
       grid.appendChild(card);
+      continue;
     }
+
+    const url = URL.createObjectURL(blob);
+    const base = v.file.name.replace(/\.[^.]+$/, '');
+    const slug = (v.caption || 'clip').slice(0, 30).replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'clip';
+    const name = `${base}-${slug}.${ext}`;
+    renderedResults.push({ blob, name });
+
+    const mb = (blob.size / 1024 / 1024).toFixed(1);
+    const card = document.createElement('div');
+    card.className = 'result-card';
+    card.innerHTML = `
+      <video src="${url}" controls playsinline></video>
+      <div class="txt">${escapeAttr(v.caption || '(no caption)')}</div>
+      <div style="font-size:10px;color:var(--muted-2);text-align:center;margin:4px 0;">${ext.toUpperCase()} · ${mb} MB</div>
+      <a class="dl" href="${url}" download="${name}">Download .${ext}</a>
+    `;
+    grid.appendChild(card);
+    success++;
   }
 
   pfill.style.width = '100%';
   $('status').textContent = `Done — ${success}/${videos.length} videos rendered.`;
   $('resultsMeta').textContent = `${success} rendered`;
+  if (renderedResults.length > 1) $('zipBtn').classList.remove('hidden');
   $('renderBtn').disabled = false;
   $('renderBtn').textContent = `Render ${videos.length} ${videos.length === 1 ? 'video' : 'videos'}`;
+});
+
+/* ============================================================
+   ZIP download
+============================================================ */
+let jszipPromise = null;
+function loadJSZip() {
+  if (window.JSZip) return Promise.resolve(window.JSZip);
+  if (jszipPromise) return jszipPromise;
+  jszipPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js';
+    s.onload = () => resolve(window.JSZip);
+    s.onerror = () => reject(new Error('JSZip failed to load'));
+    document.head.appendChild(s);
+  });
+  return jszipPromise;
+}
+
+$('zipBtn').addEventListener('click', async () => {
+  if (!renderedResults.length) return;
+  const btn = $('zipBtn');
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = 'Preparing ZIP…';
+  try {
+    const JSZip = await loadJSZip();
+    const zip = new JSZip();
+    // Avoid filename collisions by adding an index prefix
+    const used = new Set();
+    renderedResults.forEach((r, i) => {
+      let name = r.name;
+      if (used.has(name)) {
+        const dot = name.lastIndexOf('.');
+        name = name.slice(0, dot) + `-${i + 1}` + name.slice(dot);
+      }
+      used.add(name);
+      zip.file(name, r.blob);
+    });
+    btn.textContent = 'Compressing…';
+    // STORE (no compression) — video files are already compressed, so DEFLATE is wasted CPU
+    const blob = await zip.generateAsync(
+      { type: 'blob', compression: 'STORE' },
+      (meta) => { btn.textContent = `Compressing… ${Math.round(meta.percent)}%`; }
+    );
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    a.download = `overlay-videos-${stamp}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    btn.textContent = '✓ Downloaded';
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2000);
+  } catch (e) {
+    console.error(e);
+    btn.textContent = 'Failed — try again';
+    btn.disabled = false;
+    setTimeout(() => (btn.textContent = original), 3000);
+  }
 });
 </script>
 </body>
