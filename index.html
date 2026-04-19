@@ -3,173 +3,149 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Bulk TikTok Text Overlay</title>
+<title>Bulk Video Text Overlay</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Archivo+Black&family=Bebas+Neue&family=Anton&family=Special+Elite&family=Caveat:wght@400;700&family=Pacifico&family=Bangers&family=Permanent+Marker&family=Oswald:wght@700;800&family=Playfair+Display:wght@700;900&family=Rubik+Mono+One&display=swap" rel="stylesheet" />
 <style>
   :root {
     --bg: #0a0a0a;
     --panel: #141414;
     --panel-2: #1c1c1c;
+    --panel-3: #252525;
     --border: #2a2a2a;
+    --border-2: #3a3a3a;
     --text: #f5f5f5;
     --muted: #888;
+    --muted-2: #666;
     --accent: #fe2c55;
     --accent-2: #25f4ee;
+    --danger: #ff4444;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { background: var(--bg); color: var(--text); }
   body {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     min-height: 100vh;
-    padding: 24px;
+    padding: 20px;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
   }
-  .container { max-width: 1400px; margin: 0 auto; }
-  header { margin-bottom: 24px; display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; }
-  h1 { font-size: 26px; font-weight: 900; letter-spacing: -0.02em; }
+  .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+  header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; padding-bottom: 8px; }
+  h1 { font-size: 24px; font-weight: 900; letter-spacing: -0.02em; }
   h1 span { color: var(--accent); }
-  .subtitle { color: var(--muted); margin-top: 4px; font-size: 13px; }
-  a.ext { color: var(--muted); font-size: 12px; text-decoration: none; }
-  a.ext:hover { color: var(--accent); }
+  .subtitle { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .badge { font-size: 11px; color: var(--muted); padding: 4px 10px; background: var(--panel); border-radius: 999px; border: 1px solid var(--border); }
 
-  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
-  @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .panel-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .panel h2 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+  .panel-h .meta { font-size: 12px; color: var(--muted-2); }
 
-  .panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 18px;
-  }
-  .panel + .panel { margin-top: 16px; }
-  .panel h2 {
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--muted);
-    margin-bottom: 12px;
-  }
+  .dropzone { border: 2px dashed var(--border-2); border-radius: 10px; padding: 28px 16px; text-align: center; cursor: pointer; transition: all 0.15s; font-size: 14px; color: var(--muted); }
+  .dropzone:hover, .dropzone.drag { border-color: var(--accent); background: rgba(254,44,85,0.06); color: var(--text); }
+  .dropzone b { color: var(--text); }
 
-  .dropzone {
-    border: 2px dashed var(--border);
-    border-radius: 10px;
-    padding: 32px 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-size: 14px;
-    color: var(--muted);
-  }
-  .dropzone:hover, .dropzone.drag { border-color: var(--accent); background: rgba(254,44,85,0.05); color: var(--text); }
-  .dropzone.loaded { padding: 14px; color: var(--text); }
+  .video-queue { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 14px; }
+  .video-card { background: var(--panel-2); border: 2px solid var(--border); border-radius: 10px; padding: 10px; position: relative; cursor: pointer; transition: border-color 0.15s; }
+  .video-card.active { border-color: var(--accent); }
+  .video-card:hover:not(.active) { border-color: var(--border-2); }
+  .video-thumb { width: 100%; aspect-ratio: 9/16; background: #000; border-radius: 6px; object-fit: cover; display: block; }
+  .video-caption-input { width: 100%; margin-top: 8px; background: var(--panel-3); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-family: inherit; font-size: 13px; outline: none; }
+  .video-caption-input:focus { border-color: var(--accent); }
+  .video-meta { font-size: 10px; color: var(--muted-2); margin-top: 6px; display: flex; justify-content: space-between; }
+  .video-remove { position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.7); color: white; border: none; width: 24px; height: 24px; border-radius: 50%; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1; }
+  .video-remove:hover { background: var(--danger); }
 
-  textarea, input[type=text], input[type=number], select {
-    width: 100%;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 10px 12px;
-    border-radius: 8px;
-    font-family: inherit;
-    font-size: 14px;
-    outline: none;
-  }
+  .bulk-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .bulk-actions button { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .bulk-actions button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .main-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+  @media (max-width: 980px) { .main-grid { grid-template-columns: 1fr; } }
+
+  textarea, input[type=text], input[type=number], select { width: 100%; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); padding: 10px 12px; border-radius: 8px; font-family: inherit; font-size: 13px; outline: none; }
   textarea:focus, input:focus, select:focus { border-color: var(--accent); }
-  textarea { min-height: 140px; resize: vertical; line-height: 1.5; }
+  select { cursor: pointer; }
 
-  label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px; margin-top: 12px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
-  label:first-child { margin-top: 0; }
+  label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px; margin-top: 14px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  .field { margin-top: 14px; }
+  .field:first-child { margin-top: 0; }
+  .field:first-child > label { margin-top: 0; }
 
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 
-  button {
-    background: var(--accent);
-    color: white;
-    border: none;
-    padding: 12px 20px;
-    border-radius: 8px;
-    font-family: inherit;
-    font-weight: 700;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  button:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
+  input[type=range] { width: 100%; height: 22px; background: transparent; -webkit-appearance: none; appearance: none; }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; background: var(--panel-3); border-radius: 2px; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; margin-top: -7px; width: 18px; height: 18px; background: var(--accent); border-radius: 50%; cursor: pointer; border: 2px solid var(--bg); }
+  input[type=range]::-moz-range-track { height: 4px; background: var(--panel-3); border-radius: 2px; }
+  input[type=range]::-moz-range-thumb { width: 18px; height: 18px; background: var(--accent); border-radius: 50%; cursor: pointer; border: 2px solid var(--bg); }
+  .range-label { display: flex; justify-content: space-between; align-items: baseline; }
+  .range-label .val { font-size: 12px; color: var(--muted-2); font-variant-numeric: tabular-nums; }
+
+  button { background: var(--accent); color: white; border: none; padding: 12px 20px; border-radius: 8px; font-family: inherit; font-weight: 700; font-size: 14px; cursor: pointer; transition: all 0.15s; }
+  button:hover:not(:disabled) { filter: brightness(1.1); }
+  button:active:not(:disabled) { transform: translateY(1px); }
   button:disabled { opacity: 0.4; cursor: not-allowed; }
-  button.secondary {
-    background: var(--panel-2);
-    color: var(--text);
-    border: 1px solid var(--border);
-  }
-  .btn-block { width: 100%; margin-top: 16px; padding: 14px; font-size: 15px; }
 
-  .preview-wrap {
-    background: #000;
-    border-radius: 10px;
-    overflow: hidden;
-    position: relative;
-    aspect-ratio: 9/16;
-    max-width: 280px;
-    margin: 0 auto;
-  }
-  canvas.preview { width: 100%; height: 100%; display: block; }
+  .font-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .font-btn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); padding: 10px 6px; border-radius: 8px; font-size: 20px; font-weight: 800; cursor: pointer; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; line-height: 1; }
+  .font-btn .fname { font-size: 9px; color: var(--muted-2); font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+  .font-btn:hover { border-color: var(--border-2); }
+  .font-btn.active { border-color: var(--accent); background: rgba(254,44,85,0.08); }
+  .font-btn.active .fname { color: var(--accent); }
 
-  .results-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-    gap: 14px;
-    margin-top: 12px;
-  }
-  .result-card {
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 10px;
-  }
+  .preset-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .preset-btn { padding: 8px 6px; font-size: 11px; background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); font-weight: 700; border-radius: 6px; cursor: pointer; }
+  .preset-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(254,44,85,0.08); }
+  .preset-btn:hover:not(.active) { color: var(--text); }
+
+  .pos-quick { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 6px; }
+  .pos-quick button { font-size: 10px; padding: 6px 2px; background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); border-radius: 5px; font-weight: 600; }
+  .pos-quick button:hover { color: var(--accent); border-color: var(--accent); }
+
+  input[type=color] { width: 100%; height: 38px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-2); cursor: pointer; padding: 2px; }
+
+  .preview-wrap { background: #000; border-radius: 10px; overflow: hidden; position: relative; aspect-ratio: 9/16; max-width: 260px; margin: 0 auto; cursor: grab; user-select: none; }
+  .preview-wrap.dragging { cursor: grabbing; }
+  canvas.preview { width: 100%; height: 100%; display: block; touch-action: none; }
+  .preview-hint { font-size: 11px; color: var(--muted-2); text-align: center; margin-top: 8px; }
+  .preview-nav { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; }
+  .preview-nav button { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; flex: 1; }
+  .preview-nav button:hover:not(:disabled) { border-color: var(--accent); }
+
+  .render-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .render-bar button.primary { padding: 14px 24px; font-size: 15px; flex: 1; min-width: 200px; }
+  .render-bar select { max-width: 180px; }
+
+  .progress { background: var(--panel-2); border-radius: 6px; overflow: hidden; height: 6px; margin-top: 10px; }
+  .progress-fill { background: linear-gradient(90deg, var(--accent), var(--accent-2)); height: 100%; width: 0%; transition: width 0.2s; }
+  .status { font-size: 13px; color: var(--muted); margin-top: 8px; min-height: 18px; }
+
+  .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+  .result-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
   .result-card video { width: 100%; aspect-ratio: 9/16; background: #000; border-radius: 6px; object-fit: cover; }
   .result-card .txt { font-size: 12px; margin: 8px 0; color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 32px; }
   .result-card a.dl { display: block; text-align: center; padding: 8px; background: var(--accent); color: white; text-decoration: none; border-radius: 6px; font-size: 12px; font-weight: 700; }
   .result-card a.dl:hover { filter: brightness(1.1); }
 
-  .progress {
-    background: var(--panel-2);
-    border-radius: 6px;
-    overflow: hidden;
-    height: 6px;
-    margin-top: 12px;
-  }
-  .progress-fill { background: linear-gradient(90deg, var(--accent), var(--accent-2)); height: 100%; transition: width 0.2s; width: 0%; }
+  .hidden { display: none !important; }
 
-  .status { font-size: 13px; color: var(--muted); margin-top: 8px; min-height: 18px; }
-
-  .preset-row { display: flex; gap: 6px; flex-wrap: wrap; }
-  .preset-row button {
-    padding: 7px 12px;
-    font-size: 12px;
-    background: var(--panel-2);
-    color: var(--muted);
-    border: 1px solid var(--border);
-    font-weight: 600;
-  }
-  .preset-row button.active { border-color: var(--accent); color: var(--accent); background: rgba(254,44,85,0.08); }
-  .preset-row button:hover:not(.active) { color: var(--text); }
-
-  .swatch { display: flex; align-items: center; gap: 6px; }
-  .swatch input[type=color] {
-    width: 100%;
-    height: 38px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--panel-2);
-    cursor: pointer;
-    padding: 2px;
-  }
-
-  .helper { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
-  .note { background: rgba(37,244,238,0.08); border: 1px solid rgba(37,244,238,0.2); border-radius: 8px; padding: 10px 12px; font-size: 12px; color: var(--accent-2); margin-top: 12px; }
+  .ff-classic   { font-family: 'Inter', sans-serif; font-weight: 900; }
+  .ff-impact    { font-family: 'Archivo Black', sans-serif; }
+  .ff-tall      { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.02em; }
+  .ff-strong    { font-family: 'Anton', sans-serif; letter-spacing: 0.02em; }
+  .ff-condensed { font-family: 'Oswald', sans-serif; font-weight: 800; }
+  .ff-serif     { font-family: 'Playfair Display', serif; font-weight: 900; }
+  .ff-script    { font-family: 'Pacifico', cursive; }
+  .ff-hand      { font-family: 'Caveat', cursive; font-weight: 700; }
+  .ff-type      { font-family: 'Special Elite', monospace; }
+  .ff-marker    { font-family: 'Permanent Marker', cursive; }
+  .ff-comic     { font-family: 'Bangers', cursive; letter-spacing: 0.03em; }
+  .ff-mono      { font-family: 'Rubik Mono One', monospace; }
 </style>
 </head>
 <body>
@@ -177,265 +153,475 @@
 
 <header>
   <div>
-    <h1>Bulk TikTok <span>Text Overlay</span></h1>
-    <p class="subtitle">Upload one video, paste captions, get a batch of videos back.</p>
+    <h1>Bulk Video <span>Text Overlay</span></h1>
+    <p class="subtitle">Upload multiple videos, caption each one, render them all at once.</p>
   </div>
-  <a class="ext" href="https://github.com" target="_blank" rel="noopener">runs 100% in your browser · no upload · no server</a>
+  <span class="badge">100% browser · no uploads · no server</span>
 </header>
 
-<div class="grid">
-  <!-- LEFT: controls -->
-  <div>
-    <div class="panel">
-      <h2>1. Video</h2>
-      <div class="dropzone" id="drop">
-        <div id="dropText">Click or drop a video file (MP4, MOV, WebM)</div>
+<section class="panel">
+  <div class="panel-h">
+    <h2>1 · Videos &amp; Captions</h2>
+    <span class="meta" id="videoCount">0 videos</span>
+  </div>
+  <div class="dropzone" id="drop">
+    <div><b>Click</b> or drop video files — you can add multiple at once</div>
+  </div>
+  <div class="video-queue" id="queue"></div>
+  <div class="bulk-actions hidden" id="bulkActions">
+    <button id="applyCaptionsBtn">Paste caption list…</button>
+    <button id="clearCaptionsBtn">Clear all captions</button>
+    <button id="removeAllBtn">Remove all videos</button>
+  </div>
+</section>
+
+<div class="main-grid">
+
+  <section class="panel">
+    <div class="panel-h"><h2>2 · Text style</h2></div>
+
+    <div class="field">
+      <label>Font</label>
+      <div class="font-grid" id="fontGrid">
+        <button class="font-btn ff-classic active" data-font="Inter" data-weight="900">Aa<span class="fname">Classic</span></button>
+        <button class="font-btn ff-impact"   data-font="Archivo Black" data-weight="400">Aa<span class="fname">Impact</span></button>
+        <button class="font-btn ff-tall"     data-font="Bebas Neue" data-weight="400">Aa<span class="fname">Tall</span></button>
+        <button class="font-btn ff-strong"   data-font="Anton" data-weight="400">Aa<span class="fname">Strong</span></button>
+        <button class="font-btn ff-condensed" data-font="Oswald" data-weight="800">Aa<span class="fname">Condensed</span></button>
+        <button class="font-btn ff-serif"    data-font="Playfair Display" data-weight="900">Aa<span class="fname">Serif</span></button>
+        <button class="font-btn ff-script"   data-font="Pacifico" data-weight="400">Aa<span class="fname">Script</span></button>
+        <button class="font-btn ff-hand"     data-font="Caveat" data-weight="700">Aa<span class="fname">Hand</span></button>
+        <button class="font-btn ff-type"     data-font="Special Elite" data-weight="400">Aa<span class="fname">Typewriter</span></button>
+        <button class="font-btn ff-marker"   data-font="Permanent Marker" data-weight="400">Aa<span class="fname">Marker</span></button>
+        <button class="font-btn ff-comic"    data-font="Bangers" data-weight="400">Aa<span class="fname">Comic</span></button>
+        <button class="font-btn ff-mono"     data-font="Rubik Mono One" data-weight="400">Aa<span class="fname">Mono</span></button>
       </div>
     </div>
 
-    <div class="panel">
-      <h2>2. Captions — one per line</h2>
-      <textarea id="texts" placeholder="POV: you finally tried it&#10;wait for it...&#10;this changed everything">POV: you finally tried it
-wait for it…
-this changed everything</textarea>
-      <p class="helper">Each line becomes its own video. Long lines auto-wrap.</p>
-    </div>
-
-    <div class="panel">
-      <h2>3. Style</h2>
-
-      <label>Presets</label>
+    <div class="field">
+      <label>Style preset</label>
       <div class="preset-row">
-        <button data-preset="classic" class="active">Classic</button>
-        <button data-preset="bar">Black bar</button>
-        <button data-preset="white">White bg</button>
-        <button data-preset="outline">Outline</button>
-        <button data-preset="neon">Neon</button>
-      </div>
-
-      <div class="row">
-        <div>
-          <label>Font size (% height)</label>
-          <input type="number" id="fontSize" value="5.5" min="2" max="15" step="0.5" />
-        </div>
-        <div>
-          <label>Position</label>
-          <select id="position">
-            <option value="top">Top</option>
-            <option value="upper">Upper third</option>
-            <option value="center" selected>Center</option>
-            <option value="lower">Lower third</option>
-            <option value="bottom">Bottom</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="row-3">
-        <div>
-          <label>Text color</label>
-          <div class="swatch"><input type="color" id="color" value="#ffffff" /></div>
-        </div>
-        <div>
-          <label>Background</label>
-          <select id="bgStyle">
-            <option value="none">None</option>
-            <option value="solid">Solid block</option>
-            <option value="rounded" selected>Rounded pill</option>
-            <option value="outline">Outline only</option>
-          </select>
-        </div>
-        <div>
-          <label>BG color</label>
-          <div class="swatch"><input type="color" id="bgColor" value="#000000" /></div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div>
-          <label>Font weight</label>
-          <select id="weight">
-            <option value="600">Semibold</option>
-            <option value="700">Bold</option>
-            <option value="800" selected>Extra bold</option>
-            <option value="900">Black</option>
-          </select>
-        </div>
-        <div>
-          <label>Output format</label>
-          <select id="format">
-            <option value="webm">WebM (fast, needs conversion for TikTok)</option>
-            <option value="mp4" selected>MP4 (TikTok-ready, slower)</option>
-          </select>
-        </div>
+        <button class="preset-btn active" data-preset="clean">Clean</button>
+        <button class="preset-btn" data-preset="bar">Bar</button>
+        <button class="preset-btn" data-preset="pill">Pill</button>
+        <button class="preset-btn" data-preset="outline">Outline</button>
+        <button class="preset-btn" data-preset="neon">Neon</button>
       </div>
     </div>
 
-    <button id="process" class="btn-block" disabled>Upload a video to start</button>
-    <div id="status" class="status"></div>
-    <div class="progress"><div class="progress-fill" id="pfill"></div></div>
-
-    <div id="resultsPanel" style="display:none; margin-top: 16px;" class="panel">
-      <h2>Results</h2>
-      <div class="results-grid" id="rgrid"></div>
+    <div class="row" style="margin-top:14px;">
+      <div>
+        <div class="range-label"><label style="margin:0;">Size</label><span class="val" id="fontSizeVal">6%</span></div>
+        <input type="range" id="fontSize" min="2" max="15" step="0.25" value="6" />
+      </div>
+      <div>
+        <div class="range-label"><label style="margin:0;">Weight</label><span class="val" id="weightVal">800</span></div>
+        <input type="range" id="weight" min="300" max="900" step="100" value="800" />
+      </div>
     </div>
-  </div>
 
-  <!-- RIGHT: preview -->
-  <div>
-    <div class="panel">
+    <div class="row">
+      <div class="field">
+        <div class="range-label"><label style="margin:0;">Letter spacing</label><span class="val" id="letterVal">0</span></div>
+        <input type="range" id="letter" min="-5" max="30" step="1" value="0" />
+      </div>
+      <div class="field">
+        <div class="range-label"><label style="margin:0;">Line height</label><span class="val" id="lineVal">1.2</span></div>
+        <input type="range" id="line" min="0.9" max="2" step="0.05" value="1.2" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Position · drag the text in the preview</label>
+      <div class="row">
+        <div>
+          <div class="range-label"><span style="font-size:11px;color:var(--muted-2);">X</span><span class="val" id="posXVal">50%</span></div>
+          <input type="range" id="posX" min="0" max="100" step="1" value="50" />
+        </div>
+        <div>
+          <div class="range-label"><span style="font-size:11px;color:var(--muted-2);">Y</span><span class="val" id="posYVal">50%</span></div>
+          <input type="range" id="posY" min="0" max="100" step="1" value="50" />
+        </div>
+      </div>
+      <div class="pos-quick">
+        <button data-pos="15">Top</button>
+        <button data-pos="30">Upper</button>
+        <button data-pos="50">Center</button>
+        <button data-pos="70">Lower</button>
+        <button data-pos="88">Bottom</button>
+      </div>
+    </div>
+
+    <div class="row-3">
+      <div class="field">
+        <label>Text color</label>
+        <input type="color" id="color" value="#ffffff" />
+      </div>
+      <div class="field">
+        <label>Background</label>
+        <select id="bgStyle">
+          <option value="none">None</option>
+          <option value="solid">Solid block</option>
+          <option value="rounded" selected>Rounded pill</option>
+          <option value="outline">Outline only</option>
+          <option value="shadow">Drop shadow</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>BG / stroke</label>
+        <input type="color" id="bgColor" value="#000000" />
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <div class="range-label"><label style="margin:0;">Stroke thickness</label><span class="val" id="strokeVal">6</span></div>
+        <input type="range" id="stroke" min="0" max="30" step="1" value="6" />
+      </div>
+      <div class="field">
+        <label>Case</label>
+        <select id="transform">
+          <option value="none" selected>As typed</option>
+          <option value="upper">UPPERCASE</option>
+          <option value="lower">lowercase</option>
+          <option value="title">Title Case</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-h">
       <h2>Live preview</h2>
-      <div class="preview-wrap">
-        <canvas class="preview" id="preview" width="720" height="1280"></canvas>
-      </div>
-      <p class="status" style="text-align:center; margin-top:10px;">
-        Caption <span id="previewIdx">1</span> of <span id="previewCount">0</span>
-        &nbsp;·&nbsp;
-        <a href="#" id="previewNext" style="color:var(--accent-2); text-decoration:none;">next →</a>
-      </p>
-      <div class="note" id="formatNote">
-        <b>Heads up:</b> MP4 export loads a ~30 MB encoder the first time. WebM is instant but TikTok requires MP4.
-      </div>
+      <span class="meta" id="previewMeta">no video</span>
     </div>
-  </div>
+    <div class="preview-wrap" id="previewWrap">
+      <canvas class="preview" id="preview" width="720" height="1280"></canvas>
+    </div>
+    <div class="preview-hint">Drag the text to reposition</div>
+    <div class="preview-nav">
+      <button id="prevBtn">← Prev</button>
+      <button id="nextBtn">Next →</button>
+    </div>
+  </section>
+
 </div>
+
+<section class="panel">
+  <div class="panel-h"><h2>3 · Render</h2></div>
+  <div class="render-bar">
+    <select id="format">
+      <option value="mp4" selected>MP4 (TikTok-ready)</option>
+      <option value="webm">WebM (fast)</option>
+    </select>
+    <button id="renderBtn" class="primary" disabled>Add videos to start</button>
+  </div>
+  <div class="progress"><div class="progress-fill" id="pfill"></div></div>
+  <div class="status" id="status"></div>
+</section>
+
+<section class="panel hidden" id="resultsPanel">
+  <div class="panel-h">
+    <h2>Results</h2>
+    <span class="meta" id="resultsMeta"></span>
+  </div>
+  <div class="results-grid" id="rgrid"></div>
+</section>
 
 </div>
 
 <script>
-/* ============================================================
-   State
-============================================================ */
-let videoFile = null;
-let videoURL = null;
-let videoEl = null;
-let previewIdx = 0;
-let previewRaf = null;
+const videos = [];
+let activeIdx = 0;
 let ffmpeg = null;
 let ffmpegLoading = null;
+let previewRaf = null;
+let dragState = null;
+let nextId = 1;
+
+const style = {
+  font: 'Inter',
+  weightCSS: 900,
+  weight: 800,
+  fontSizePct: 6,
+  letter: 0,
+  line: 1.2,
+  color: '#ffffff',
+  bgStyle: 'rounded',
+  bgColor: '#000000',
+  stroke: 6,
+  posX: 50,
+  posY: 50,
+  transform: 'none',
+};
 
 const $ = (id) => document.getElementById(id);
 const drop = $('drop');
 const previewCanvas = $('preview');
+const previewWrap = $('previewWrap');
 const pctx = previewCanvas.getContext('2d');
 
-/* ============================================================
-   File upload
-============================================================ */
 drop.addEventListener('click', () => {
   const inp = document.createElement('input');
   inp.type = 'file';
   inp.accept = 'video/*';
-  inp.onchange = () => inp.files[0] && loadVideo(inp.files[0]);
+  inp.multiple = true;
+  inp.onchange = () => { [...inp.files].forEach(addVideo); };
   inp.click();
 });
 
 ['dragover', 'dragenter'].forEach((e) =>
-  drop.addEventListener(e, (ev) => {
-    ev.preventDefault();
-    drop.classList.add('drag');
-  })
+  drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.add('drag'); })
 );
-['dragleave'].forEach((e) =>
-  drop.addEventListener(e, (ev) => {
-    ev.preventDefault();
-    drop.classList.remove('drag');
-  })
-);
+drop.addEventListener('dragleave', (ev) => { ev.preventDefault(); drop.classList.remove('drag'); });
 drop.addEventListener('drop', (ev) => {
   ev.preventDefault();
   drop.classList.remove('drag');
-  const f = ev.dataTransfer.files[0];
-  if (f && f.type.startsWith('video/')) loadVideo(f);
+  [...ev.dataTransfer.files].forEach((f) => { if (f.type.startsWith('video/')) addVideo(f); });
 });
 
-function loadVideo(file) {
-  videoFile = file;
-  if (videoURL) URL.revokeObjectURL(videoURL);
-  videoURL = URL.createObjectURL(file);
+async function addVideo(file) {
+  const id = nextId++;
+  const url = URL.createObjectURL(file);
+  const el = document.createElement('video');
+  el.src = url;
+  el.muted = true;
+  el.playsInline = true;
+  el.loop = true;
 
-  if (!videoEl) {
-    videoEl = document.createElement('video');
-    videoEl.muted = true;
-    videoEl.playsInline = true;
-    videoEl.loop = true;
-  }
-  videoEl.src = videoURL;
-  videoEl.addEventListener(
-    'loadedmetadata',
-    () => {
-      previewCanvas.width = videoEl.videoWidth;
-      previewCanvas.height = videoEl.videoHeight;
-      videoEl.play().catch(() => {});
-      startPreview();
-    },
-    { once: true }
-  );
+  try {
+    await new Promise((res, rej) => {
+      el.addEventListener('loadedmetadata', res, { once: true });
+      el.addEventListener('error', () => rej(new Error('Load failed')), { once: true });
+    });
+  } catch (e) { alert('Could not load ' + file.name); return; }
 
-  drop.classList.add('loaded');
-  $('dropText').innerHTML = `✓ <b>${file.name}</b> <span style="color:var(--muted)">(${(file.size / 1024 / 1024).toFixed(1)} MB) — click to change</span>`;
-  $('process').disabled = false;
-  $('process').textContent = 'Process all captions';
-  updatePreviewCount();
+  el.currentTime = Math.min(0.1, el.duration / 3);
+  await new Promise((r) => el.addEventListener('seeked', r, { once: true }));
+  const t = document.createElement('canvas');
+  const maxW = 300;
+  const scale = Math.min(1, maxW / el.videoWidth);
+  t.width = el.videoWidth * scale;
+  t.height = el.videoHeight * scale;
+  t.getContext('2d').drawImage(el, 0, 0, t.width, t.height);
+  const thumbDataUrl = t.toDataURL('image/jpeg', 0.6);
+  el.currentTime = 0;
+  el.play().catch(() => {});
+
+  const v = { id, file, url, el, caption: '', duration: el.duration, w: el.videoWidth, h: el.videoHeight, thumbDataUrl };
+  videos.push(v);
+  renderQueue();
+  if (videos.length === 1) { activeIdx = 0; syncPreviewSize(); startPreview(); }
+  updateUI();
 }
 
-/* ============================================================
-   Presets
-============================================================ */
-const presets = {
-  classic: { bgStyle: 'none',    color: '#ffffff', bgColor: '#000000', weight: '800' },
-  bar:     { bgStyle: 'solid',   color: '#ffffff', bgColor: '#000000', weight: '800' },
-  white:   { bgStyle: 'solid',   color: '#000000', bgColor: '#ffffff', weight: '800' },
-  outline: { bgStyle: 'outline', color: '#ffffff', bgColor: '#000000', weight: '900' },
-  neon:    { bgStyle: 'outline', color: '#ffffff', bgColor: '#fe2c55', weight: '900' },
-};
-document.querySelectorAll('[data-preset]').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('[data-preset]').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    const p = presets[btn.dataset.preset];
-    $('bgStyle').value = p.bgStyle;
-    $('color').value = p.color;
-    $('bgColor').value = p.bgColor;
-    $('weight').value = p.weight;
+const queueEl = $('queue');
+function renderQueue() {
+  queueEl.innerHTML = '';
+  videos.forEach((v, i) => {
+    const card = document.createElement('div');
+    card.className = 'video-card' + (i === activeIdx ? ' active' : '');
+    card.innerHTML = `
+      <button class="video-remove" data-remove="${v.id}" title="Remove">×</button>
+      <img class="video-thumb" src="${v.thumbDataUrl}" alt="thumb" />
+      <input class="video-caption-input" type="text" value="${escapeAttr(v.caption)}" placeholder="Caption for this video…" data-cap="${v.id}" />
+      <div class="video-meta"><span>${v.w}×${v.h}</span><span>${v.duration.toFixed(1)}s</span></div>
+    `;
+    card.addEventListener('click', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+      activeIdx = i; syncPreviewSize(); startPreview(); renderQueue(); updateUI();
+    });
+    queueEl.appendChild(card);
+  });
+  queueEl.querySelectorAll('.video-caption-input').forEach((inp) => {
+    inp.addEventListener('input', (e) => {
+      const id = Number(e.target.dataset.cap);
+      const v = videos.find((x) => x.id === id);
+      if (v) v.caption = e.target.value;
+    });
+    inp.addEventListener('focus', (e) => {
+      const id = Number(e.target.dataset.cap);
+      const idx = videos.findIndex((x) => x.id === id);
+      if (idx >= 0 && idx !== activeIdx) {
+        activeIdx = idx; syncPreviewSize(); startPreview();
+        queueEl.querySelectorAll('.video-card').forEach((c, i) => c.classList.toggle('active', i === activeIdx));
+        updateUI();
+      }
+    });
+  });
+  queueEl.querySelectorAll('[data-remove]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = Number(btn.dataset.remove);
+      const idx = videos.findIndex((x) => x.id === id);
+      if (idx >= 0) {
+        URL.revokeObjectURL(videos[idx].url);
+        videos.splice(idx, 1);
+        if (activeIdx >= videos.length) activeIdx = Math.max(0, videos.length - 1);
+        renderQueue();
+        if (videos.length) { syncPreviewSize(); startPreview(); } else { clearPreview(); }
+        updateUI();
+      }
+    });
+  });
+}
+
+function escapeAttr(s) { return String(s).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+$('applyCaptionsBtn').addEventListener('click', () => {
+  const text = prompt('Paste captions — one per line. Applied in order to your videos:');
+  if (!text) return;
+  const lines = text.split('\n').map((s) => s.trim());
+  videos.forEach((v, i) => { if (lines[i] !== undefined) v.caption = lines[i]; });
+  renderQueue();
+});
+$('clearCaptionsBtn').addEventListener('click', () => {
+  videos.forEach((v) => (v.caption = ''));
+  renderQueue();
+});
+$('removeAllBtn').addEventListener('click', () => {
+  if (!confirm('Remove all videos?')) return;
+  videos.forEach((v) => URL.revokeObjectURL(v.url));
+  videos.length = 0; activeIdx = 0;
+  renderQueue(); clearPreview(); updateUI();
+});
+
+function updateUI() {
+  $('videoCount').textContent = videos.length + (videos.length === 1 ? ' video' : ' videos');
+  $('bulkActions').classList.toggle('hidden', videos.length === 0);
+  const btn = $('renderBtn');
+  if (videos.length === 0) { btn.disabled = true; btn.textContent = 'Add videos to start'; }
+  else { btn.disabled = false; btn.textContent = `Render ${videos.length} ${videos.length === 1 ? 'video' : 'videos'}`; }
+  if (videos.length && videos[activeIdx]) $('previewMeta').textContent = `video ${activeIdx + 1} of ${videos.length}`;
+  else $('previewMeta').textContent = 'no video';
+  $('prevBtn').disabled = videos.length < 2;
+  $('nextBtn').disabled = videos.length < 2;
+}
+
+$('prevBtn').addEventListener('click', () => {
+  if (!videos.length) return;
+  activeIdx = (activeIdx - 1 + videos.length) % videos.length;
+  syncPreviewSize(); startPreview(); renderQueue(); updateUI();
+});
+$('nextBtn').addEventListener('click', () => {
+  if (!videos.length) return;
+  activeIdx = (activeIdx + 1) % videos.length;
+  syncPreviewSize(); startPreview(); renderQueue(); updateUI();
+});
+
+document.querySelectorAll('#fontGrid .font-btn').forEach((b) => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('#fontGrid .font-btn').forEach((x) => x.classList.remove('active'));
+    b.classList.add('active');
+    style.font = b.dataset.font;
+    style.weightCSS = Number(b.dataset.weight);
+    document.fonts.load(`${style.weightCSS} 48px "${style.font}"`).catch(() => {});
   });
 });
 
-/* ============================================================
-   Rendering
-============================================================ */
-function getStyle() {
-  return {
-    fontSizePct: parseFloat($('fontSize').value) || 5.5,
-    position: $('position').value,
-    color: $('color').value,
-    bgStyle: $('bgStyle').value,
-    bgColor: $('bgColor').value,
-    weight: $('weight').value,
-  };
-}
-
-function getTexts() {
-  return $('texts')
-    .value.split('\n')
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-function updatePreviewCount() {
-  const n = getTexts().length;
-  $('previewCount').textContent = n;
-  if (previewIdx >= n) previewIdx = 0;
-  $('previewIdx').textContent = Math.min(previewIdx + 1, n);
-}
-
-$('previewNext').addEventListener('click', (e) => {
-  e.preventDefault();
-  const texts = getTexts();
-  if (!texts.length) return;
-  previewIdx = (previewIdx + 1) % texts.length;
-  $('previewIdx').textContent = previewIdx + 1;
+const presets = {
+  clean:   { bgStyle: 'shadow',  color: '#ffffff', bgColor: '#000000', stroke: 0,  transform: 'none' },
+  bar:     { bgStyle: 'solid',   color: '#ffffff', bgColor: '#000000', stroke: 0,  transform: 'none' },
+  pill:    { bgStyle: 'rounded', color: '#ffffff', bgColor: '#000000', stroke: 0,  transform: 'none' },
+  outline: { bgStyle: 'outline', color: '#ffffff', bgColor: '#000000', stroke: 8,  transform: 'none' },
+  neon:    { bgStyle: 'outline', color: '#ffffff', bgColor: '#fe2c55', stroke: 10, transform: 'upper' },
+};
+document.querySelectorAll('.preset-btn').forEach((b) => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.preset-btn').forEach((x) => x.classList.remove('active'));
+    b.classList.add('active');
+    const p = presets[b.dataset.preset];
+    Object.assign(style, p);
+    $('bgStyle').value = p.bgStyle;
+    $('color').value = p.color;
+    $('bgColor').value = p.bgColor;
+    $('stroke').value = p.stroke;
+    $('strokeVal').textContent = p.stroke;
+    $('transform').value = p.transform;
+  });
 });
 
+document.querySelectorAll('.pos-quick button').forEach((b) => {
+  b.addEventListener('click', () => {
+    style.posY = Number(b.dataset.pos);
+    $('posY').value = style.posY;
+    $('posYVal').textContent = style.posY + '%';
+  });
+});
+
+function bindRange(id, key, suffix = '', parse = Number) {
+  const el = $(id);
+  const valEl = $(id + 'Val');
+  el.addEventListener('input', () => {
+    style[key] = parse(el.value);
+    if (valEl) valEl.textContent = el.value + suffix;
+  });
+}
+bindRange('fontSize', 'fontSizePct', '%', parseFloat);
+bindRange('weight', 'weight', '');
+bindRange('letter', 'letter', '');
+bindRange('line', 'line', '', parseFloat);
+bindRange('posX', 'posX', '%');
+bindRange('posY', 'posY', '%');
+bindRange('stroke', 'stroke', '');
+
+$('color').addEventListener('input', (e) => (style.color = e.target.value));
+$('bgColor').addEventListener('input', (e) => (style.bgColor = e.target.value));
+$('bgStyle').addEventListener('change', (e) => (style.bgStyle = e.target.value));
+$('transform').addEventListener('change', (e) => (style.transform = e.target.value));
+
+previewWrap.addEventListener('pointerdown', (e) => {
+  if (!videos.length) return;
+  const rect = previewCanvas.getBoundingClientRect();
+  const x = ((e.clientX - rect.left) / rect.width) * 100;
+  const y = ((e.clientY - rect.top) / rect.height) * 100;
+  dragState = true;
+  previewWrap.classList.add('dragging');
+  try { previewWrap.setPointerCapture(e.pointerId); } catch (err) {}
+  style.posX = clamp(x, 0, 100);
+  style.posY = clamp(y, 0, 100);
+  syncPosInputs();
+});
+previewWrap.addEventListener('pointermove', (e) => {
+  if (!dragState) return;
+  const rect = previewCanvas.getBoundingClientRect();
+  const x = ((e.clientX - rect.left) / rect.width) * 100;
+  const y = ((e.clientY - rect.top) / rect.height) * 100;
+  style.posX = clamp(x, 0, 100);
+  style.posY = clamp(y, 0, 100);
+  syncPosInputs();
+});
+function endDrag() { dragState = null; previewWrap.classList.remove('dragging'); }
+previewWrap.addEventListener('pointerup', endDrag);
+previewWrap.addEventListener('pointercancel', endDrag);
+previewWrap.addEventListener('pointerleave', endDrag);
+
+function syncPosInputs() {
+  $('posX').value = Math.round(style.posX);
+  $('posY').value = Math.round(style.posY);
+  $('posXVal').textContent = Math.round(style.posX) + '%';
+  $('posYVal').textContent = Math.round(style.posY) + '%';
+}
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function applyTransform(t, mode) {
+  if (!t) return t;
+  if (mode === 'upper') return t.toUpperCase();
+  if (mode === 'lower') return t.toLowerCase();
+  if (mode === 'title') return t.replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
+  return t;
+}
+function wrapLines(ctx, text, maxW) {
+  const words = text.split(/\s+/);
+  const lines = []; let cur = '';
+  for (const w of words) {
+    const test = cur ? cur + ' ' + w : w;
+    if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = w; }
+    else cur = test;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
 function roundRect(ctx, x, y, w, h, r) {
   r = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
@@ -447,380 +633,269 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function wrapLines(ctx, text, maxW) {
-  const words = text.split(/\s+/);
-  const lines = [];
-  let cur = '';
-  for (const w of words) {
-    const test = cur ? cur + ' ' + w : w;
-    if (ctx.measureText(test).width > maxW && cur) {
-      lines.push(cur);
-      cur = w;
-    } else {
-      cur = test;
-    }
-  }
-  if (cur) lines.push(cur);
-  return lines;
-}
-
-function drawText(ctx, canvas, text, style) {
-  if (!text) return;
+function drawText(ctx, canvas, rawText, s) {
+  if (!rawText) return;
+  const text = applyTransform(rawText, s.transform);
   const H = canvas.height;
   const W = canvas.width;
-  const fontPx = (style.fontSizePct / 100) * H;
+  const fontPx = (s.fontSizePct / 100) * H;
+  const letterSpacingPx = (s.letter / 100) * fontPx;
 
-  ctx.font = `${style.weight} ${fontPx}px Inter, system-ui, sans-serif`;
+  ctx.font = `${s.weight} ${fontPx}px "${s.font}", sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+  if ('letterSpacing' in ctx) ctx.letterSpacing = letterSpacingPx + 'px';
 
-  const maxWidth = W * 0.84;
+  const maxWidth = W * 0.88;
   const lines = wrapLines(ctx, text, maxWidth);
-
-  const lineH = fontPx * 1.22;
+  const lineH = fontPx * s.line;
   const totalH = lines.length * lineH;
 
-  let startY;
-  switch (style.position) {
-    case 'top':    startY = H * 0.10 + lineH / 2; break;
-    case 'upper':  startY = H * 0.28 - totalH / 2 + lineH / 2; break;
-    case 'center': startY = H * 0.50 - totalH / 2 + lineH / 2; break;
-    case 'lower':  startY = H * 0.72 - totalH / 2 + lineH / 2; break;
-    case 'bottom': startY = H * 0.90 - totalH + lineH / 2; break;
-    default:       startY = H / 2 - totalH / 2 + lineH / 2;
-  }
+  const centerX = (s.posX / 100) * W;
+  const topY = (s.posY / 100) * H - totalH / 2 + lineH / 2;
 
-  const padX = fontPx * 0.35;
-  const padY = fontPx * 0.22;
+  const padX = fontPx * 0.4;
+  const padY = fontPx * 0.26;
+  const strokePx = (s.stroke / 100) * fontPx;
 
   lines.forEach((ln, i) => {
-    const ly = startY + i * lineH;
+    const ly = topY + i * lineH;
     const tw = ctx.measureText(ln).width;
-    const boxX = (W - tw) / 2 - padX;
+    const boxX = centerX - tw / 2 - padX;
     const boxY = ly - fontPx / 2 - padY / 2;
     const boxW = tw + padX * 2;
     const boxH = fontPx + padY;
 
-    // background
-    if (style.bgStyle === 'solid') {
-      ctx.fillStyle = style.bgColor;
+    if (s.bgStyle === 'solid') {
+      ctx.fillStyle = s.bgColor;
       ctx.fillRect(boxX, boxY, boxW, boxH);
-    } else if (style.bgStyle === 'rounded') {
-      ctx.fillStyle = style.bgColor;
-      roundRect(ctx, boxX, boxY, boxW, boxH, fontPx * 0.22);
+    } else if (s.bgStyle === 'rounded') {
+      ctx.fillStyle = s.bgColor;
+      roundRect(ctx, boxX, boxY, boxW, boxH, fontPx * 0.28);
       ctx.fill();
-    } else if (style.bgStyle === 'outline') {
-      ctx.lineWidth = fontPx * 0.16;
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = style.bgColor;
-      ctx.strokeText(ln, W / 2, ly);
-    } else if (style.bgStyle === 'none') {
-      // subtle shadow for legibility
-      ctx.shadowColor = 'rgba(0,0,0,0.35)';
-      ctx.shadowBlur = fontPx * 0.12;
-      ctx.shadowOffsetY = fontPx * 0.02;
+    } else if (s.bgStyle === 'shadow') {
+      ctx.shadowColor = 'rgba(0,0,0,0.55)';
+      ctx.shadowBlur = fontPx * 0.18;
+      ctx.shadowOffsetY = fontPx * 0.03;
     }
 
-    // text
-    ctx.fillStyle = style.color;
-    ctx.fillText(ln, W / 2, ly);
+    if (s.bgStyle === 'outline' || (s.stroke > 0 && s.bgStyle !== 'solid' && s.bgStyle !== 'rounded' && s.bgStyle !== 'shadow')) {
+      ctx.lineWidth = Math.max(1, strokePx);
+      ctx.lineJoin = 'round';
+      ctx.miterLimit = 2;
+      ctx.strokeStyle = s.bgColor;
+      ctx.strokeText(ln, centerX, ly);
+    }
 
-    // reset shadow
+    ctx.fillStyle = s.color;
+    ctx.fillText(ln, centerX, ly);
+
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
   });
 }
 
-/* ============================================================
-   Preview loop
-============================================================ */
+function syncPreviewSize() {
+  const v = videos[activeIdx];
+  if (!v) return;
+  previewCanvas.width = v.w;
+  previewCanvas.height = v.h;
+}
+
 function startPreview() {
   cancelAnimationFrame(previewRaf);
   function loop() {
-    if (videoEl && videoEl.readyState >= 2) {
-      pctx.drawImage(videoEl, 0, 0, previewCanvas.width, previewCanvas.height);
-      const texts = getTexts();
-      const txt = texts[previewIdx] || texts[0] || '';
-      drawText(pctx, previewCanvas, txt, getStyle());
+    const v = videos[activeIdx];
+    if (v && v.el.readyState >= 2) {
+      pctx.drawImage(v.el, 0, 0, previewCanvas.width, previewCanvas.height);
+      drawText(pctx, previewCanvas, v.caption || 'your caption here', style);
     }
     previewRaf = requestAnimationFrame(loop);
   }
   loop();
 }
 
-['texts', 'fontSize', 'position', 'color', 'bgStyle', 'bgColor', 'weight'].forEach((id) => {
-  $(id).addEventListener('input', () => {
-    if (id === 'texts') updatePreviewCount();
-  });
-});
+function clearPreview() {
+  cancelAnimationFrame(previewRaf);
+  previewCanvas.width = 720;
+  previewCanvas.height = 1280;
+  pctx.fillStyle = '#0a0a0a';
+  pctx.fillRect(0, 0, 720, 1280);
+  pctx.fillStyle = '#444';
+  pctx.font = '700 56px Inter, sans-serif';
+  pctx.textAlign = 'center';
+  pctx.textBaseline = 'middle';
+  pctx.fillText('Add a video', 360, 610);
+  pctx.font = '400 32px Inter, sans-serif';
+  pctx.fillStyle = '#2a2a2a';
+  pctx.fillText('to preview captions', 360, 670);
+}
+clearPreview();
+updateUI();
 
-/* ============================================================
-   Render one caption → Blob
-============================================================ */
-async function renderOne(text, style, onProgress) {
-  const v = document.createElement('video');
-  v.src = videoURL;
-  v.playsInline = true;
-
+async function renderOneVideo(v, s, onProgress) {
+  const srcVideo = document.createElement('video');
+  srcVideo.src = v.url;
+  srcVideo.playsInline = true;
   await new Promise((res, rej) => {
-    v.addEventListener('loadedmetadata', res, { once: true });
-    v.addEventListener('error', () => rej(new Error('Could not load video')), { once: true });
+    srcVideo.addEventListener('loadedmetadata', res, { once: true });
+    srcVideo.addEventListener('error', () => rej(new Error('Load failed')), { once: true });
   });
 
-  const W = v.videoWidth;
-  const H = v.videoHeight;
+  const W = srcVideo.videoWidth;
+  const H = srcVideo.videoHeight;
   const c = document.createElement('canvas');
-  c.width = W;
-  c.height = H;
+  c.width = W; c.height = H;
   const ctx = c.getContext('2d');
 
-  const fps = 30;
-  const stream = c.captureStream(fps);
+  try { await document.fonts.load(`${s.weight} ${(s.fontSizePct / 100) * H}px "${s.font}"`); } catch (e) {}
 
-  // Audio capture via Web Audio — no audible playback during render
+  const stream = c.captureStream(30);
+
   let audioCtx = null;
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const source = audioCtx.createMediaElementSource(v);
+    const source = audioCtx.createMediaElementSource(srcVideo);
     const dest = audioCtx.createMediaStreamDestination();
     source.connect(dest);
     dest.stream.getAudioTracks().forEach((t) => stream.addTrack(t));
-  } catch (e) {
-    console.warn('Audio capture unavailable:', e.message);
-  }
+  } catch (e) {}
 
-  // Pick the best supported webm codec
-  const mimeCandidates = [
-    'video/webm;codecs=vp9,opus',
-    'video/webm;codecs=vp8,opus',
-    'video/webm;codecs=vp9',
-    'video/webm;codecs=vp8',
-    'video/webm',
-  ];
-  const mime = mimeCandidates.find((m) => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+  const mimeOptions = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  const mime = mimeOptions.find((m) => MediaRecorder.isTypeSupported(m)) || 'video/webm';
 
-  const rec = new MediaRecorder(stream, {
-    mimeType: mime,
-    videoBitsPerSecond: 8_000_000,
-  });
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8_000_000 });
   const chunks = [];
-
   const blobPromise = new Promise((resolve, reject) => {
     rec.ondataavailable = (e) => e.data.size > 0 && chunks.push(e.data);
-    rec.onstop = () => {
-      if (audioCtx) audioCtx.close().catch(() => {});
-      resolve(new Blob(chunks, { type: mime }));
-    };
+    rec.onstop = () => { if (audioCtx) audioCtx.close().catch(() => {}); resolve(new Blob(chunks, { type: mime })); };
     rec.onerror = (e) => reject(e.error || new Error('Recorder error'));
   });
 
-  v.currentTime = 0;
-  try {
-    await v.play();
-  } catch (e) {
-    throw new Error('Browser blocked playback. Try clicking the page first.');
-  }
+  srcVideo.currentTime = 0;
+  await srcVideo.play();
   rec.start(100);
 
-  const duration = v.duration;
+  const duration = srcVideo.duration;
   let stopped = false;
-
   const stopRec = () => {
     if (stopped) return;
     stopped = true;
     try { rec.stop(); } catch (e) {}
-    try { v.pause(); } catch (e) {}
+    try { srcVideo.pause(); } catch (e) {}
   };
 
   (function tick() {
     if (stopped) return;
-    ctx.drawImage(v, 0, 0, W, H);
-    drawText(ctx, c, text, style);
-    if (onProgress && duration) onProgress(Math.min(1, v.currentTime / duration));
-    if (v.ended || v.currentTime >= duration - 0.05) {
-      setTimeout(stopRec, 150);
-      return;
-    }
+    ctx.drawImage(srcVideo, 0, 0, W, H);
+    drawText(ctx, c, v.caption, s);
+    if (onProgress && duration) onProgress(Math.min(1, srcVideo.currentTime / duration));
+    if (srcVideo.ended || srcVideo.currentTime >= duration - 0.05) { setTimeout(stopRec, 150); return; }
     requestAnimationFrame(tick);
   })();
-
-  v.addEventListener('ended', () => setTimeout(stopRec, 150), { once: true });
-
-  // safety timeout
+  srcVideo.addEventListener('ended', () => setTimeout(stopRec, 150), { once: true });
   setTimeout(() => { if (!stopped) stopRec(); }, (duration + 8) * 1000);
 
   return blobPromise;
 }
 
-/* ============================================================
-   ffmpeg.wasm for MP4 conversion (on demand)
-============================================================ */
 async function loadFFmpeg() {
   if (ffmpeg) return ffmpeg;
   if (ffmpegLoading) return ffmpegLoading;
-
   ffmpegLoading = (async () => {
     $('status').textContent = 'Loading MP4 encoder (first time only, ~30MB)…';
-
-    // Load UMD bundles
     await loadScript('https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js');
     await loadScript('https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js');
-
     const { FFmpeg } = window.FFmpegWASM;
     const { toBlobURL } = window.FFmpegUtil;
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-
+    const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
     const ff = new FFmpeg();
     await ff.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+      coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
     });
     ffmpeg = ff;
     return ff;
   })();
-
   return ffmpegLoading;
 }
-
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = src;
-    s.onload = resolve;
-    s.onerror = () => reject(new Error('Failed to load ' + src));
+    s.src = src; s.onload = resolve; s.onerror = () => reject(new Error('Load failed: ' + src));
     document.head.appendChild(s);
   });
 }
-
 async function webmToMp4(blob) {
   const ff = await loadFFmpeg();
   const bytes = new Uint8Array(await blob.arrayBuffer());
   await ff.writeFile('in.webm', bytes);
-  await ff.exec([
-    '-i', 'in.webm',
-    '-c:v', 'libx264',
-    '-preset', 'ultrafast',
-    '-pix_fmt', 'yuv420p',
-    '-profile:v', 'high',
-    '-level', '4.0',
-    '-movflags', '+faststart',
-    '-c:a', 'aac',
-    '-b:a', '128k',
-    'out.mp4',
-  ]);
+  await ff.exec(['-i', 'in.webm', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-level', '4.0', '-movflags', '+faststart', '-c:a', 'aac', '-b:a', '128k', 'out.mp4']);
   const data = await ff.readFile('out.mp4');
   try { await ff.deleteFile('in.webm'); } catch (e) {}
   try { await ff.deleteFile('out.mp4'); } catch (e) {}
   return new Blob([data.buffer], { type: 'video/mp4' });
 }
 
-/* ============================================================
-   Process button
-============================================================ */
-$('process').addEventListener('click', async () => {
-  const texts = getTexts();
-  if (!texts.length) {
-    $('status').textContent = 'Add at least one caption.';
-    return;
-  }
-  if (!videoFile) return;
-
-  const style = getStyle();
+$('renderBtn').addEventListener('click', async () => {
+  if (!videos.length) return;
   const format = $('format').value;
-
-  $('process').disabled = true;
-  $('process').textContent = 'Rendering…';
-  $('resultsPanel').style.display = 'block';
+  $('renderBtn').disabled = true;
+  $('renderBtn').textContent = 'Rendering…';
+  $('resultsPanel').classList.remove('hidden');
   $('rgrid').innerHTML = '';
   const grid = $('rgrid');
   const pfill = $('pfill');
 
-  // Pre-load ffmpeg if MP4 so the download happens once, not per-clip
   if (format === 'mp4') {
-    try {
-      await loadFFmpeg();
-    } catch (e) {
-      $('status').textContent = 'MP4 encoder failed to load — falling back to WebM. ' + e.message;
-    }
+    try { await loadFFmpeg(); }
+    catch (e) { $('status').textContent = 'MP4 unavailable — WebM fallback. ' + e.message; }
   }
 
-  for (let i = 0; i < texts.length; i++) {
-    const text = texts[i];
-    $('status').textContent = `Rendering ${i + 1}/${texts.length}: "${text}"`;
-
+  let success = 0;
+  for (let i = 0; i < videos.length; i++) {
+    const v = videos[i];
+    $('status').textContent = `Rendering ${i + 1}/${videos.length}: ${v.file.name}`;
     try {
-      let blob = await renderOne(text, style, (p) => {
-        const overall = ((i + p) / texts.length) * 100;
-        pfill.style.width = overall + '%';
-      });
-
+      let blob = await renderOneVideo(v, style, (p) => { pfill.style.width = ((i + p) / videos.length) * 100 + '%'; });
       let ext = 'webm';
       if (format === 'mp4' && ffmpeg) {
-        $('status').textContent = `Encoding MP4 ${i + 1}/${texts.length}…`;
-        try {
-          blob = await webmToMp4(blob);
-          ext = 'mp4';
-        } catch (e) {
-          console.error('MP4 conversion failed:', e);
-        }
+        $('status').textContent = `Encoding MP4 ${i + 1}/${videos.length}…`;
+        try { blob = await webmToMp4(blob); ext = 'mp4'; } catch (e) { console.error(e); }
       }
-
       const url = URL.createObjectURL(blob);
-      const slug = text
-        .slice(0, 30)
-        .replace(/[^a-z0-9]+/gi, '-')
-        .replace(/^-|-$/g, '')
-        .toLowerCase() || 'clip';
-      const name = `clip-${String(i + 1).padStart(2, '0')}-${slug}.${ext}`;
+      const base = v.file.name.replace(/\.[^.]+$/, '');
+      const slug = (v.caption || 'clip').slice(0, 30).replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'clip';
+      const name = `${base}-${slug}.${ext}`;
 
       const card = document.createElement('div');
       card.className = 'result-card';
       card.innerHTML = `
         <video src="${url}" controls playsinline></video>
-        <div class="txt">${escapeHtml(text)}</div>
+        <div class="txt">${escapeAttr(v.caption || '(no caption)')}</div>
         <a class="dl" href="${url}" download="${name}">Download .${ext}</a>
       `;
       grid.appendChild(card);
+      success++;
     } catch (err) {
       console.error(err);
       const card = document.createElement('div');
       card.className = 'result-card';
       card.innerHTML = `
-        <div style="aspect-ratio:9/16; background:#2a0a0a; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#ff6b6b; font-size:12px; text-align:center; padding:8px;">
-          Failed<br>${escapeHtml(err.message || String(err))}
-        </div>
-        <div class="txt">${escapeHtml(text)}</div>
+        <div style="aspect-ratio:9/16;background:#2a0a0a;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#ff6b6b;font-size:12px;text-align:center;padding:8px;">Failed<br><small>${escapeAttr(err.message || String(err))}</small></div>
+        <div class="txt">${escapeAttr(v.file.name)}</div>
       `;
       grid.appendChild(card);
     }
   }
 
   pfill.style.width = '100%';
-  $('status').textContent = `Done — ${texts.length} video(s) rendered.`;
-  $('process').disabled = false;
-  $('process').textContent = 'Process all captions';
+  $('status').textContent = `Done — ${success}/${videos.length} videos rendered.`;
+  $('resultsMeta').textContent = `${success} rendered`;
+  $('renderBtn').disabled = false;
+  $('renderBtn').textContent = `Render ${videos.length} ${videos.length === 1 ? 'video' : 'videos'}`;
 });
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
-/* ============================================================
-   Initial placeholder
-============================================================ */
-pctx.fillStyle = '#0a0a0a';
-pctx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
-pctx.fillStyle = '#555';
-pctx.font = '700 52px Inter, sans-serif';
-pctx.textAlign = 'center';
-pctx.textBaseline = 'middle';
-pctx.fillText('Upload a video', previewCanvas.width / 2, previewCanvas.height / 2 - 30);
-pctx.font = '400 32px Inter, sans-serif';
-pctx.fillStyle = '#333';
-pctx.fillText('to preview captions', previewCanvas.width / 2, previewCanvas.height / 2 + 30);
-
-updatePreviewCount();
 </script>
 </body>
 </html>
