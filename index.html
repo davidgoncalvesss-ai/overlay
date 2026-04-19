@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TikTok Text Overlay</title>
+<link rel="preconnect" href="https://rsms.me/">
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --panel: #161616;
+    --border: #2a2a2a;
+    --text: #f5f5f5;
+    --muted: #888;
+    --accent: #fe2c55;
+    --ok: #25f4ee;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 40px 20px;
+    line-height: 1.4;
+  }
+  .wrap { max-width: 640px; width: 100%; }
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    background: linear-gradient(90deg, var(--accent), var(--ok));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: inline-block;
+  }
+  p.sub { color: var(--muted); margin-bottom: 28px; font-size: 14px; }
+
+  .banner {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--ok);
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .banner.err { border-left-color: var(--accent); color: var(--text); }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  label {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  input[type="text"] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    margin-bottom: 12px;
+    font-family: inherit;
+    transition: border-color 0.15s;
+  }
+  input[type="text"]:last-of-type { margin-bottom: 0; }
+  input[type="text"]:focus { outline: none; border-color: var(--accent); }
+
+  .drop {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: var(--panel);
+  }
+  .drop:hover, .drop.drag { border-color: var(--accent); background: rgba(254,44,85,0.04); }
+  .drop.disabled { opacity: 0.5; pointer-events: none; }
+  .drop strong { color: var(--text); font-size: 15px; }
+  .drop p { color: var(--muted); font-size: 13px; margin-top: 6px; }
+
+  #files { margin-top: 14px; }
+  .file {
+    display: flex;
+    align-items: center;
+    padding: 12px 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-size: 14px;
+    gap: 12px;
+  }
+  .file .name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .file .status { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .file.ok .status { color: var(--ok); }
+  .file.err .status { color: var(--accent); }
+  .file button {
+    background: var(--ok);
+    color: #000;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .file button:hover { filter: brightness(1.1); }
+  .spin {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 6px;
+    vertical-align: -1px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  input[type="file"] { display: none; }
+
+  .foot { color: var(--muted); font-size: 12px; margin-top: 20px; text-align: center; }
+  .foot a { color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>TikTok text overlay</h1>
+    <p class="sub">Drop videos → adds 3 lines of styled text → download. All in your browser.</p>
+
+    <div id="banner" class="banner">Loading FFmpeg (~30 MB, first time only)…</div>
+
+    <div class="panel">
+      <label>Line 1</label>
+      <input type="text" id="l1" value="I make 49 an hour">
+      <label>Line 2</label>
+      <input type="text" id="l2" value="scrolling TikTok and you're">
+      <label>Line 3</label>
+      <input type="text" id="l3" value="still doing it for free 😂">
+    </div>
+
+    <div class="drop disabled" id="drop">
+      <strong>Drop videos here</strong>
+      <p>or click to select — .mp4 .mov .webm</p>
+      <input type="file" id="file" multiple accept="video/*">
+    </div>
+
+    <div id="files"></div>
+
+    <p class="foot">Videos never leave your device. Processing runs locally via ffmpeg.wasm.</p>
+  </div>
+
+<script type="module">
+  import { FFmpeg } from 'https://esm.sh/@ffmpeg/ffmpeg@0.12.15';
+  import { toBlobURL } from 'https://esm.sh/@ffmpeg/util@0.12.2';
+
+  // ---- Style constants (mirror the AppleScript) -----------------
+  const FONT_SIZE    = 64;      // px @ 1080-wide frame; scales with video size
+  const FONT_WEIGHT  = 600;     // Inter SemiBold
+  const STROKE_WIDTH = 10;      // canvas stroke is centered on path → ~5px visible outside
+  const LINE_SPACING = 1.15;    // multiplier on font size
+  // ---------------------------------------------------------------
+
+  const banner = document.getElementById('banner');
+  const drop = document.getElementById('drop');
+  const fileInput = document.getElementById('file');
+  const filesDiv = document.getElementById('files');
+
+  let ffmpeg = null;
+  let ffmpegReady = false;
+  let ffmpegBusy = Promise.resolve(); // serialize ffmpeg.exec() calls
+
+  // ---- Load ffmpeg.wasm -----------------------------------------
+  async function loadFFmpeg() {
+    // Crash early with a helpful message if SharedArrayBuffer isn't available
+    if (typeof SharedArrayBuffer === 'undefined') {
+      throw new Error(
+        "SharedArrayBuffer not available. This page needs to be served " +
+        "with COOP/COEP headers (see vercel.json)."
+      );
+    }
+
+    ffmpeg = new FFmpeg();
+    const base = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
+    await ffmpeg.load({
+      coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+    });
+    ffmpegReady = true;
+  }
+
+  // Kick off load + Inter font in parallel
+  (async () => {
+    try {
+      // Wait for Inter to be ready so canvas text metrics are correct
+      await Promise.all([
+        document.fonts.load(`600 64px "Inter"`),
+        loadFFmpeg(),
+      ]);
+      banner.textContent = "Ready — drop videos below.";
+      drop.classList.remove('disabled');
+    } catch (err) {
+      banner.classList.add('err');
+      banner.textContent = "Failed to load FFmpeg: " + (err.message || err);
+    }
+  })();
+
+  // ---- UI wiring ------------------------------------------------
+  drop.addEventListener('click', () => fileInput.click());
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault();
+    drop.classList.remove('drag');
+    if (!drop.classList.contains('disabled')) handleFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+  function handleFiles(list) {
+    [...list].forEach(file => {
+      const row = document.createElement('div');
+      row.className = 'file';
+      row.innerHTML =
+        '<div class="name"></div>' +
+        '<div class="status"><span class="spin"></span>queued</div>';
+      row.querySelector('.name').textContent = file.name;
+      filesDiv.appendChild(row);
+      queueProcess(file, row);
+    });
+  }
+
+  function queueProcess(file, row) {
+    // Serialize: ffmpeg.wasm has one virtual FS + runtime, concurrent runs clash
+    ffmpegBusy = ffmpegBusy.then(() => processOne(file, row)).catch(() => {});
+  }
+
+  // ---- Main processing ------------------------------------------
+  async function processOne(file, row) {
+    const statusEl = row.querySelector('.status');
+    try {
+      const lines = [
+        document.getElementById('l1').value,
+        document.getElementById('l2').value,
+        document.getElementById('l3').value,
+      ];
+
+      statusEl.innerHTML = '<span class="spin"></span>reading video…';
+      const { width, height } = await getVideoDimensions(file);
+
+      statusEl.innerHTML = '<span class="spin"></span>rendering text…';
+      const overlayBlob = await renderOverlayPNG(width, height, lines);
+      const overlayBytes = new Uint8Array(await overlayBlob.arrayBuffer());
+
+      statusEl.innerHTML = '<span class="spin"></span>loading file…';
+      const ext = (file.name.split('.').pop() || 'mp4').toLowerCase();
+      const inputName  = `in.${ext}`;
+      const outputName = `out.mp4`;
+      const inputBytes = new Uint8Array(await file.arrayBuffer());
+      await ffmpeg.writeFile(inputName, inputBytes);
+      await ffmpeg.writeFile('overlay.png', overlayBytes);
+
+      statusEl.innerHTML = '<span class="spin"></span>processing 0%';
+      const progressHandler = ({ progress }) => {
+        const pct = Math.max(0, Math.min(100, Math.round(progress * 100)));
+        statusEl.innerHTML = `<span class="spin"></span>processing ${pct}%`;
+      };
+      ffmpeg.on('progress', progressHandler);
+
+      await ffmpeg.exec([
+        '-i', inputName,
+        '-i', 'overlay.png',
+        '-filter_complex', '[0:v][1:v]overlay=0:0:format=auto[v]',
+        '-map', '[v]',
+        '-map', '0:a?',
+        '-c:a', 'copy',
+        '-c:v', 'libx264',
+        '-preset', 'veryfast',
+        '-crf', '20',
+        '-pix_fmt', 'yuv420p',
+        '-movflags', '+faststart',
+        outputName,
+      ]);
+
+      ffmpeg.off('progress', progressHandler);
+
+      const data = await ffmpeg.readFile(outputName);
+      const blob = new Blob([data.buffer], { type: 'video/mp4' });
+      const url  = URL.createObjectURL(blob);
+
+      // Clean up virtual FS
+      await ffmpeg.deleteFile(inputName).catch(() => {});
+      await ffmpeg.deleteFile('overlay.png').catch(() => {});
+      await ffmpeg.deleteFile(outputName).catch(() => {});
+
+      row.classList.add('ok');
+      statusEl.textContent = 'ready';
+      const btn = document.createElement('button');
+      btn.textContent = 'Download';
+      btn.onclick = () => {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'text_' + file.name.replace(/\.[^.]+$/, '') + '.mp4';
+        a.click();
+      };
+      row.appendChild(btn);
+    } catch (err) {
+      console.error(err);
+      row.classList.add('err');
+      statusEl.textContent = 'failed: ' + (err.message || String(err)).slice(0, 80);
+    }
+  }
+
+  // ---- Helpers --------------------------------------------------
+  function getVideoDimensions(file) {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.muted = true;
+      video.onloadedmetadata = () => {
+        const w = video.videoWidth, h = video.videoHeight;
+        URL.revokeObjectURL(video.src);
+        if (!w || !h) reject(new Error('could not read video dimensions'));
+        else resolve({ width: w, height: h });
+      };
+      video.onerror = () => reject(new Error('unreadable video'));
+      video.src = URL.createObjectURL(file);
+    });
+  }
+
+  async function renderOverlayPNG(width, height, lines) {
+    // Scale font proportionally to video width (base = 1080px wide)
+    const scale = Math.max(0.5, Math.min(2.5, width / 1080));
+    const fontSize = Math.round(FONT_SIZE * scale);
+    const strokeW  = Math.round(STROKE_WIDTH * scale);
+    const lineH    = fontSize * LINE_SPACING;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    ctx.font = `${FONT_WEIGHT} ${fontSize}px "Inter", "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.miterLimit = 2;
+
+    const totalH = lineH * lines.length;
+    const startY = height / 2 - totalH / 2 + lineH / 2;
+    const cx = width / 2;
+
+    for (let i = 0; i < lines.length; i++) {
+      const y = startY + i * lineH;
+      // Stroke first (black outline)
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = strokeW;
+      ctx.strokeText(lines[i], cx, y);
+      // Fill on top (white text)
+      ctx.fillStyle = '#fff';
+      ctx.fillText(lines[i], cx, y);
+    }
+
+    return new Promise(res => canvas.toBlob(res, 'image/png'));
+  }
+</script>
+</body>
+</html>
