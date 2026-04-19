@@ -206,10 +206,21 @@
     }
 
     ffmpeg = new FFmpeg();
-    const base = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
+
+    // The worker script must be SAME-ORIGIN as our page, or the browser
+    // rejects it. We ship it in /ffmpeg/ alongside index.html. It has
+    // internal ES-module imports of ./const.js and ./errors.js which
+    // resolve relative to the worker's URL — also same-origin.
+    const workerURL = new URL('/ffmpeg/worker.js', window.location.href).href;
+
+    // ffmpeg-core (the actual WASM) can come from a CDN. toBlobURL fetches
+    // the files and wraps them as same-origin blob URLs so COEP is happy.
+    const coreBase = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
+
     await ffmpeg.load({
-      coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+      classWorkerURL: workerURL,
+      coreURL: await toBlobURL(`${coreBase}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${coreBase}/ffmpeg-core.wasm`, 'application/wasm'),
     });
     ffmpegReady = true;
   }
