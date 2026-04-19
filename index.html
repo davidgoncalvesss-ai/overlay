@@ -31,7 +31,7 @@
     font-size: 14px;
     -webkit-font-smoothing: antialiased;
   }
-  .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  .container { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
 
   header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; padding-bottom: 8px; }
   h1 { font-size: 24px; font-weight: 900; letter-spacing: -0.02em; }
@@ -53,8 +53,7 @@
   .video-card.active { border-color: var(--accent); }
   .video-card:hover:not(.active) { border-color: var(--border-2); }
   .video-thumb { width: 100%; aspect-ratio: 9/16; background: #000; border-radius: 6px; object-fit: cover; display: block; }
-  .video-caption-input { width: 100%; margin-top: 8px; background: var(--panel-3); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-family: inherit; font-size: 13px; outline: none; }
-  .video-caption-input:focus { border-color: var(--accent); }
+  .video-caption-display { width: 100%; margin-top: 8px; background: var(--panel-3); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 12px; line-height: 1.4; min-height: 32px; display: flex; align-items: center; }
   .video-meta { font-size: 10px; color: var(--muted-2); margin-top: 6px; display: flex; justify-content: space-between; }
   .video-remove { position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.7); color: white; border: none; width: 24px; height: 24px; border-radius: 50%; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1; }
   .video-remove:hover { background: var(--danger); }
@@ -63,8 +62,9 @@
   .bulk-actions button { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
   .bulk-actions button:hover { border-color: var(--accent); color: var(--accent); }
 
-  .main-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
-  @media (max-width: 980px) { .main-grid { grid-template-columns: 1fr; } }
+  .main-grid { display: grid; grid-template-columns: minmax(0, 620px) 340px; gap: 16px; align-items: start; justify-content: center; }
+  .main-grid > section:last-child { position: sticky; top: 16px; }
+  @media (max-width: 980px) { .main-grid { grid-template-columns: 1fr; justify-content: stretch; } .main-grid > section:last-child { position: static; } }
 
   textarea, input[type=text], input[type=number], select { width: 100%; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); padding: 10px 12px; border-radius: 8px; font-family: inherit; font-size: 13px; outline: none; }
   textarea:focus, input:focus, select:focus { border-color: var(--accent); }
@@ -92,7 +92,7 @@
   button:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .font-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-  .font-btn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); padding: 10px 6px; border-radius: 8px; font-size: 20px; font-weight: 800; cursor: pointer; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; line-height: 1; }
+  .font-btn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); padding: 8px 6px; border-radius: 8px; font-size: 19px; font-weight: 800; cursor: pointer; min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; line-height: 1; }
   .font-btn .fname { font-size: 9px; color: var(--muted-2); font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
   .font-btn:hover { border-color: var(--border-2); }
   .font-btn.active { border-color: var(--accent); background: rgba(254,44,85,0.08); }
@@ -133,6 +133,8 @@
   .result-card a.dl:hover { filter: brightness(1.1); }
 
   .hidden { display: none !important; }
+  .section-sep { border-top: 1px solid var(--border); margin: 16px -18px 0 -18px; padding: 16px 18px 0 18px; }
+  .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted-2); margin-bottom: 10px; }
 
   .ff-classic   { font-family: 'Inter', sans-serif; font-weight: 900; }
   .ff-impact    { font-family: 'Archivo Black', sans-serif; }
@@ -161,7 +163,7 @@
 
 <section class="panel">
   <div class="panel-h">
-    <h2>1 · Videos &amp; Captions</h2>
+    <h2>1 · Videos</h2>
     <span class="meta" id="videoCount">0 videos</span>
   </div>
   <div class="dropzone" id="drop">
@@ -169,19 +171,26 @@
   </div>
   <div class="video-queue" id="queue"></div>
   <div class="bulk-actions hidden" id="bulkActions">
-    <button id="applyCaptionsBtn">Paste caption list…</button>
-    <button id="clearCaptionsBtn">Clear all captions</button>
     <button id="removeAllBtn">Remove all videos</button>
   </div>
+</section>
+
+<section class="panel">
+  <div class="panel-h">
+    <h2>2 · Captions &nbsp;·&nbsp; one per line</h2>
+    <span class="meta" id="captionsMeta">0 captions</span>
+  </div>
+  <textarea id="captionsBulk" rows="5" placeholder="POV: you finally tried it&#10;wait for it…&#10;this changed everything&#10;&#10;(line 1 → video 1, line 2 → video 2, etc.)"></textarea>
+  <p class="hint" style="font-size:11px;color:var(--muted-2);margin-top:6px;line-height:1.5;">Each line is applied to a video in order. Edit a line here to change that video's caption. You'll see the caption appear under each video thumbnail above.</p>
 </section>
 
 <div class="main-grid">
 
   <section class="panel">
-    <div class="panel-h"><h2>2 · Text style</h2></div>
+    <div class="panel-h"><h2>3 · Text style</h2></div>
 
     <div class="field">
-      <label>Font</label>
+      <div class="section-title" style="margin-bottom:10px;">Font family</div>
       <div class="font-grid" id="fontGrid">
         <button class="font-btn ff-classic active" data-font="Inter" data-weight="900">Aa<span class="fname">Classic</span></button>
         <button class="font-btn ff-impact"   data-font="Archivo Black" data-weight="400">Aa<span class="fname">Impact</span></button>
@@ -198,8 +207,9 @@
       </div>
     </div>
 
-    <div class="field">
-      <label>Style preset</label>
+    <div class="field section-sep">
+      <div class="section-title">Appearance</div>
+      <label style="margin-top:0;">Style preset</label>
       <div class="preset-row">
         <button class="preset-btn active" data-preset="clean">Clean</button>
         <button class="preset-btn" data-preset="bar">Bar</button>
@@ -209,30 +219,34 @@
       </div>
     </div>
 
-    <div class="row" style="margin-top:14px;">
-      <div>
-        <div class="range-label"><label style="margin:0;">Size</label><span class="val" id="fontSizeVal">6%</span></div>
-        <input type="range" id="fontSize" min="2" max="15" step="0.25" value="6" />
+    <div class="section-sep">
+      <div class="section-title">Typography</div>
+      <div class="row">
+        <div>
+          <div class="range-label"><label style="margin:0;">Size</label><span class="val" id="fontSizeVal">6%</span></div>
+          <input type="range" id="fontSize" min="2" max="15" step="0.25" value="6" />
+        </div>
+        <div>
+          <div class="range-label"><label style="margin:0;">Weight</label><span class="val" id="weightVal">800</span></div>
+          <input type="range" id="weight" min="300" max="900" step="100" value="800" />
+        </div>
       </div>
-      <div>
-        <div class="range-label"><label style="margin:0;">Weight</label><span class="val" id="weightVal">800</span></div>
-        <input type="range" id="weight" min="300" max="900" step="100" value="800" />
+
+      <div class="row" style="margin-top:12px;">
+        <div class="field" style="margin-top:0;">
+          <div class="range-label"><label style="margin:0;">Letter spacing</label><span class="val" id="letterVal">0</span></div>
+          <input type="range" id="letter" min="-5" max="30" step="1" value="0" />
+        </div>
+        <div class="field" style="margin-top:0;">
+          <div class="range-label"><label style="margin:0;">Line height</label><span class="val" id="lineVal">1.2</span></div>
+          <input type="range" id="line" min="0.9" max="2" step="0.05" value="1.2" />
+        </div>
       </div>
     </div>
 
-    <div class="row">
-      <div class="field">
-        <div class="range-label"><label style="margin:0;">Letter spacing</label><span class="val" id="letterVal">0</span></div>
-        <input type="range" id="letter" min="-5" max="30" step="1" value="0" />
-      </div>
-      <div class="field">
-        <div class="range-label"><label style="margin:0;">Line height</label><span class="val" id="lineVal">1.2</span></div>
-        <input type="range" id="line" min="0.9" max="2" step="0.05" value="1.2" />
-      </div>
-    </div>
-
-    <div class="field">
-      <label>Position · drag the text in the preview</label>
+    <div class="field section-sep">
+      <div class="section-title">Position</div>
+      <label style="margin-top:0;">Drag the text in the preview, or use sliders</label>
       <div class="row">
         <div>
           <div class="range-label"><span style="font-size:11px;color:var(--muted-2);">X</span><span class="val" id="posXVal">50%</span></div>
@@ -252,40 +266,43 @@
       </div>
     </div>
 
-    <div class="row-3">
-      <div class="field">
-        <label>Text color</label>
-        <input type="color" id="color" value="#ffffff" />
+    <div class="section-sep">
+      <div class="section-title">Colors &amp; effects</div>
+      <div class="row-3">
+        <div class="field" style="margin-top:0;">
+          <label style="margin-top:0;">Text color</label>
+          <input type="color" id="color" value="#ffffff" />
+        </div>
+        <div class="field" style="margin-top:0;">
+          <label style="margin-top:0;">Background</label>
+          <select id="bgStyle">
+            <option value="none">None</option>
+            <option value="solid">Solid block</option>
+            <option value="rounded" selected>Rounded pill</option>
+            <option value="outline">Outline only</option>
+            <option value="shadow">Drop shadow</option>
+          </select>
+        </div>
+        <div class="field" style="margin-top:0;">
+          <label style="margin-top:0;">BG / stroke</label>
+          <input type="color" id="bgColor" value="#000000" />
+        </div>
       </div>
-      <div class="field">
-        <label>Background</label>
-        <select id="bgStyle">
-          <option value="none">None</option>
-          <option value="solid">Solid block</option>
-          <option value="rounded" selected>Rounded pill</option>
-          <option value="outline">Outline only</option>
-          <option value="shadow">Drop shadow</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>BG / stroke</label>
-        <input type="color" id="bgColor" value="#000000" />
-      </div>
-    </div>
 
-    <div class="row">
-      <div class="field">
-        <div class="range-label"><label style="margin:0;">Stroke thickness</label><span class="val" id="strokeVal">6</span></div>
-        <input type="range" id="stroke" min="0" max="30" step="1" value="6" />
-      </div>
-      <div class="field">
-        <label>Case</label>
-        <select id="transform">
-          <option value="none" selected>As typed</option>
-          <option value="upper">UPPERCASE</option>
-          <option value="lower">lowercase</option>
-          <option value="title">Title Case</option>
-        </select>
+      <div class="row" style="margin-top:12px;">
+        <div class="field" style="margin-top:0;">
+          <div class="range-label"><label style="margin:0;">Stroke thickness</label><span class="val" id="strokeVal">6</span></div>
+          <input type="range" id="stroke" min="0" max="30" step="1" value="6" />
+        </div>
+        <div class="field" style="margin-top:0;">
+          <label style="margin-top:0;">Case</label>
+          <select id="transform">
+            <option value="none" selected>As typed</option>
+            <option value="upper">UPPERCASE</option>
+            <option value="lower">lowercase</option>
+            <option value="title">Title Case</option>
+          </select>
+        </div>
       </div>
     </div>
   </section>
@@ -308,7 +325,7 @@
 </div>
 
 <section class="panel">
-  <div class="panel-h"><h2>3 · Render</h2></div>
+  <div class="panel-h"><h2>4 · Render</h2></div>
   <div class="render-bar">
     <select id="format">
       <option value="mp4" selected>MP4 (TikTok-ready)</option>
@@ -410,6 +427,7 @@ async function addVideo(file) {
 
   const v = { id, file, url, el, caption: '', duration: el.duration, w: el.videoWidth, h: el.videoHeight, thumbDataUrl };
   videos.push(v);
+  syncCaptionsFromTextarea(); // pick up caption from textarea if present
   renderQueue();
   if (videos.length === 1) { activeIdx = 0; syncPreviewSize(); startPreview(); }
   updateUI();
@@ -424,30 +442,16 @@ function renderQueue() {
     card.innerHTML = `
       <button class="video-remove" data-remove="${v.id}" title="Remove">×</button>
       <img class="video-thumb" src="${v.thumbDataUrl}" alt="thumb" />
-      <input class="video-caption-input" type="text" value="${escapeAttr(v.caption)}" placeholder="Caption for this video…" data-cap="${v.id}" />
-      <div class="video-meta"><span>${v.w}×${v.h}</span><span>${v.duration.toFixed(1)}s</span></div>
+      <div class="video-caption-display" data-idx="${i}">${v.caption ? escapeAttr(v.caption) : '<span style="color:var(--muted-2);">no caption · line ' + (i+1) + ' in the textarea</span>'}</div>
+      <div class="video-meta"><span>#${i+1} · ${v.w}×${v.h}</span><span>${v.duration.toFixed(1)}s</span></div>
     `;
     card.addEventListener('click', (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+      if (e.target.tagName === 'BUTTON') return;
       activeIdx = i; syncPreviewSize(); startPreview(); renderQueue(); updateUI();
+      // Also focus the corresponding line in the textarea
+      focusCaptionLine(i);
     });
     queueEl.appendChild(card);
-  });
-  queueEl.querySelectorAll('.video-caption-input').forEach((inp) => {
-    inp.addEventListener('input', (e) => {
-      const id = Number(e.target.dataset.cap);
-      const v = videos.find((x) => x.id === id);
-      if (v) v.caption = e.target.value;
-    });
-    inp.addEventListener('focus', (e) => {
-      const id = Number(e.target.dataset.cap);
-      const idx = videos.findIndex((x) => x.id === id);
-      if (idx >= 0 && idx !== activeIdx) {
-        activeIdx = idx; syncPreviewSize(); startPreview();
-        queueEl.querySelectorAll('.video-card').forEach((c, i) => c.classList.toggle('active', i === activeIdx));
-        updateUI();
-      }
-    });
   });
   queueEl.querySelectorAll('[data-remove]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
@@ -466,19 +470,32 @@ function renderQueue() {
   });
 }
 
+function focusCaptionLine(idx) {
+  const ta = $('captionsBulk');
+  const lines = ta.value.split('\n');
+  // Pad to ensure line idx exists
+  while (lines.length <= idx) lines.push('');
+  ta.value = lines.join('\n');
+  // Position cursor at start of that line
+  let pos = 0;
+  for (let i = 0; i < idx; i++) pos += lines[i].length + 1;
+  ta.focus();
+  ta.setSelectionRange(pos, pos + (lines[idx] || '').length);
+}
+
 function escapeAttr(s) { return String(s).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
-$('applyCaptionsBtn').addEventListener('click', () => {
-  const text = prompt('Paste captions — one per line. Applied in order to your videos:');
-  if (!text) return;
-  const lines = text.split('\n').map((s) => s.trim());
-  videos.forEach((v, i) => { if (lines[i] !== undefined) v.caption = lines[i]; });
+// Bulk captions textarea — this is the source of truth for captions
+const captionsBulk = $('captionsBulk');
+captionsBulk.addEventListener('input', syncCaptionsFromTextarea);
+
+function syncCaptionsFromTextarea() {
+  const lines = captionsBulk.value.split('\n');
+  videos.forEach((v, i) => { v.caption = (lines[i] || '').trim(); });
   renderQueue();
-});
-$('clearCaptionsBtn').addEventListener('click', () => {
-  videos.forEach((v) => (v.caption = ''));
-  renderQueue();
-});
+  $('captionsMeta').textContent = lines.filter(l => l.trim()).length + ' captions';
+}
+
 $('removeAllBtn').addEventListener('click', () => {
   if (!confirm('Remove all videos?')) return;
   videos.forEach((v) => URL.revokeObjectURL(v.url));
