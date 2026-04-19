@@ -92,7 +92,7 @@
     background: var(--panel);
   }
   .drop:hover, .drop.drag { border-color: var(--accent); background: rgba(254,44,85,0.04); }
-  .drop.disabled { opacity: 0.5; pointer-events: none; }
+  .drop.loading { opacity: 0.75; }
   .drop strong { color: var(--text); font-size: 15px; }
   .drop p { color: var(--muted); font-size: 13px; margin-top: 6px; }
 
@@ -164,11 +164,11 @@
       <input type="text" id="l3" value="still doing it for free 😂">
     </div>
 
-    <div class="drop disabled" id="drop">
+    <label class="drop loading" id="drop" for="file">
       <strong>Drop videos here</strong>
       <p>or click to select — .mp4 .mov .webm</p>
       <input type="file" id="file" multiple accept="video/*">
-    </div>
+    </label>
 
     <div id="files"></div>
 
@@ -192,8 +192,14 @@
   const filesDiv = document.getElementById('files');
 
   let ffmpeg = null;
-  let ffmpegReady = false;
   let ffmpegBusy = Promise.resolve(); // serialize ffmpeg.exec() calls
+
+  // Resolves when ffmpeg is ready; rejects if loading fails.
+  let markFFmpegReady, markFFmpegFailed;
+  const ffmpegReadyPromise = new Promise((resolve, reject) => {
+    markFFmpegReady = resolve;
+    markFFmpegFailed = reject;
+  });
 
   // ---- Load ffmpeg.wasm -----------------------------------------
   async function loadFFmpeg() {
@@ -206,6 +212,10 @@
     }
 
     ffmpeg = new FFmpeg();
+    // Pipe FFmpeg internal logs to the browser console so we can diagnose hangs
+    ffmpeg.on('log', ({ type, message }) => {
+      console.log(`[ffmpeg:${type}]`, message);
+    });
 
     // The worker script must be SAME-ORIGIN as our page, or the browser
     // rejects it. We ship it in /ffmpeg/ alongside index.html. It has
@@ -217,38 +227,44 @@
     // the files and wraps them as same-origin blob URLs so COEP is happy.
     const coreBase = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
 
-    await ffmpeg.load({
-      classWorkerURL: workerURL,
-      coreURL: await toBlobURL(`${coreBase}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${coreBase}/ffmpeg-core.wasm`, 'application/wasm'),
-    });
-    ffmpegReady = true;
+    banner.textContent = "Loading (1/3): ffmpeg-core.js…";
+    const coreURL = await toBlobURL(`${coreBase}/ffmpeg-core.js`, 'text/javascript');
+
+    banner.textContent = "Loading (2/3): ffmpeg-core.wasm (~30 MB)…";
+    const wasmURL = await toBlobURL(`${coreBase}/ffmpeg-core.wasm`, 'application/wasm');
+
+    banner.textContent = "Loading (3/3): starting worker…";
+    await ffmpeg.load({ classWorkerURL: workerURL, coreURL, wasmURL });
   }
 
   // Kick off load + Inter font in parallel
   (async () => {
     try {
-      // Wait for Inter to be ready so canvas text metrics are correct
       await Promise.all([
         document.fonts.load(`600 64px "Inter"`),
         loadFFmpeg(),
       ]);
       banner.textContent = "Ready — drop videos below.";
-      drop.classList.remove('disabled');
+      drop.classList.remove('loading');
+      markFFmpegReady();
     } catch (err) {
+      console.error('[ffmpeg load failed]', err);
       banner.classList.add('err');
       banner.textContent = "Failed to load FFmpeg: " + (err.message || err);
+      drop.classList.remove('loading');
+      markFFmpegFailed(err);
     }
   })();
 
   // ---- UI wiring ------------------------------------------------
-  drop.addEventListener('click', () => fileInput.click());
+  // (The drop zone is a <label for="file">, so native click-to-pick works
+  // without JS. We only need to wire drag-drop events.)
   drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
   drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
   drop.addEventListener('drop', e => {
     e.preventDefault();
     drop.classList.remove('drag');
-    if (!drop.classList.contains('disabled')) handleFiles(e.dataTransfer.files);
+    handleFiles(e.dataTransfer.files);
   });
   fileInput.addEventListener('change', e => handleFiles(e.target.files));
 
