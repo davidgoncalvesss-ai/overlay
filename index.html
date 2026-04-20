@@ -857,134 +857,294 @@ async function renderVideoToMp4(v, s, onProgress) {
   const srcVideo = document.createElement('video');
   srcVideo.src = v.url;
   srcVideo.playsInline = true;
-  await new Promise((res, rej) => {
-    srcVideo.addEventListener('loadedmetadata', res, { once: true });
-    srcVideo.addEventListener('error', () => rej(new Error('Could not load video')), { once: true });
-  });
+  srcVideo.crossOrigin = 'anonymous';
+  srcVideo.preload = 'auto';
+  // Don't set muted=true — that can cut audio off from Web Audio graphs on some browsers.
+  // We set volume=0 instead so the user doesn't hear the playback, but the audio track
+  // still flows into createMediaElementSource.
+  srcVideo.volume = 0;
+  // Attach visibly-but-tiny so browsers don't throttle decoding or mute the element.
+  // Fully offscreen (left:-9999px) can trigger media throttling on some Chrome builds.
+  srcVideo.style.cssText = 'position:fixed;bottom:0;right:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1;';
+  document.body.appendChild(srcVideo);
 
-  // H.264 requires even dimensions
-  const W = srcVideo.videoWidth & ~1;
-  const H = srcVideo.videoHeight & ~1;
-  const duration = srcVideo.duration;
-  const fps = 30;
-
-  const { codec, bitrate } = pickMp4Settings(W, H);
-
-  // Verify this config is actually supported before we commit
-  const vSupport = await VideoEncoder.isConfigSupported({ codec, width: W, height: H, bitrate, framerate: fps });
-  if (!vSupport.supported) throw new Error(`VideoEncoder cannot produce ${W}x${H} @ ${codec}`);
-
-  const aConfig = { codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, bitrate: 192_000 };
-  const aSupport = await AudioEncoder.isConfigSupported(aConfig);
-  const audioEnabled = aSupport.supported && 'MediaStreamTrackProcessor' in window;
-
-  // Preload the font so the first frames render with the right glyphs
-  try { await document.fonts.load(`${s.weight} ${(s.fontSizePct / 100) * H}px "${s.font}"`); } catch (e) {}
-
-  const canvas = document.createElement('canvas');
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext('2d', { alpha: false });
-
-  const muxerCfg = {
-    target: new ArrayBufferTarget(),
-    video: { codec: 'avc', width: W, height: H },
-    fastStart: 'in-memory',
-    firstTimestampBehavior: 'offset',
-  };
-  if (audioEnabled) muxerCfg.audio = { codec: 'aac', sampleRate: 48000, numberOfChannels: 2 };
-  const muxer = new Muxer(muxerCfg);
-
-  let encoderError = null;
-  const videoEncoder = new VideoEncoder({
-    output: (chunk, meta) => { try { muxer.addVideoChunk(chunk, meta); } catch (e) { encoderError = e; } },
-    error: (e) => { encoderError = e; console.error('VideoEncoder:', e); },
-  });
-  videoEncoder.configure({ codec, width: W, height: H, bitrate, framerate: fps });
-
-  let audioEncoder = null;
-  let audioCtx = null;
-  let audioReader = null;
-
-  if (audioEnabled) {
-    audioEncoder = new AudioEncoder({
-      output: (chunk, meta) => { try { muxer.addAudioChunk(chunk, meta); } catch (e) { /* best effort */ } },
-      error: (e) => console.warn('AudioEncoder:', e),
+  try {
+    await new Promise((res, rej) => {
+      srcVideo.addEventListener('loadedmetadata', res, { once: true });
+      srcVideo.addEventListener('error', () => rej(new Error('Could not load video')), { once: true });
     });
-    audioEncoder.configure(aConfig);
 
-    try {
-      audioCtx = new AudioContext({ sampleRate: 48000 });
-      const source = audioCtx.createMediaElementSource(srcVideo);
-      const dest = audioCtx.createMediaStreamDestination();
-      source.connect(dest);
-      const aTrack = dest.stream.getAudioTracks()[0];
-      if (aTrack) {
-        const proc = new MediaStreamTrackProcessor({ track: aTrack });
-        audioReader = proc.readable.getReader();
-      }
-    } catch (e) { console.warn('Audio pipeline:', e); }
-  }
+    // H.264 requires even dimensions
+    const W = srcVideo.videoWidth & ~1;
+    const H = srcVideo.videoHeight & ~1;
+    const duration = srcVideo.duration;
 
-  srcVideo.currentTime = 0;
-  try { await srcVideo.play(); }
-  catch (e) { throw new Error('Playback blocked — click the page and try again'); }
-
-  // Pump audio in background
-  const audioPump = (async () => {
-    if (!audioReader || !audioEncoder) return;
-    try {
-      while (true) {
-        const { value, done } = await audioReader.read();
-        if (done) break;
-        try { audioEncoder.encode(value); } catch (e) { /* dropped frame */ }
-        value.close();
-      }
-    } catch (e) { if (e.name !== 'AbortError') console.warn('audio pump:', e); }
-  })();
-
-  // Video frame loop — draw + encode on every rAF
-  let frameNum = 0;
-  let stopped = false;
-
-  await new Promise((resolve) => {
-    const safety = setTimeout(() => { stopped = true; resolve(); }, (duration + 15) * 1000);
-    function tick() {
-      if (stopped || encoderError) { clearTimeout(safety); return resolve(); }
-      try {
-        ctx.drawImage(srcVideo, 0, 0, W, H);
-        drawText(ctx, canvas, v.caption, s);
-        const timestamp = Math.round(srcVideo.currentTime * 1_000_000);
-        const frame = new VideoFrame(canvas, { timestamp });
-        videoEncoder.encode(frame, { keyFrame: frameNum % (fps * 2) === 0 });
-        frame.close();
-        frameNum++;
-      } catch (e) { console.error('frame:', e); }
-
-      if (onProgress && duration) onProgress(Math.min(1, srcVideo.currentTime / duration));
-
-      if (srcVideo.ended || srcVideo.currentTime >= duration - 0.02) {
-        stopped = true; clearTimeout(safety); return resolve();
-      }
-      requestAnimationFrame(tick);
+    if (!('requestVideoFrameCallback' in srcVideo)) {
+      throw new Error('requestVideoFrameCallback not supported — use Chrome/Edge/Firefox 132+/Safari 15.4+');
     }
-    tick();
-  });
 
-  try { srcVideo.pause(); } catch (e) {}
-  if (audioReader) { try { await audioReader.cancel(); } catch (e) {} }
-  await audioPump;
+    const { codec, bitrate } = pickMp4Settings(W, H);
 
-  try { await videoEncoder.flush(); } catch (e) { console.warn('video flush:', e); }
-  if (audioEncoder) { try { await audioEncoder.flush(); } catch (e) { console.warn('audio flush:', e); } }
-  try { videoEncoder.close(); } catch (e) {}
-  if (audioEncoder) { try { audioEncoder.close(); } catch (e) {} }
-  if (audioCtx) { try { await audioCtx.close(); } catch (e) {} }
+    // Verify this config is actually supported before we commit
+    const vSupport = await VideoEncoder.isConfigSupported({ codec, width: W, height: H, bitrate, framerate: 60 });
+    if (!vSupport.supported) throw new Error(`VideoEncoder cannot produce ${W}x${H} @ ${codec}`);
 
-  if (encoderError) throw encoderError;
+    const aConfig = { codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, bitrate: 192_000 };
+    const aSupport = await AudioEncoder.isConfigSupported(aConfig);
+    // We'll attempt audio as long as AudioEncoder is supported; MediaStreamTrackProcessor is
+    // preferred, but we have an AudioWorklet fallback for browsers that lack it.
+    const audioAvailable = aSupport.supported;
 
-  muxer.finalize();
-  return new Blob([muxer.target.buffer], { type: 'video/mp4' });
+    // Preload the font so the first frames render with the right glyphs
+    try { await document.fonts.load(`${s.weight} ${(s.fontSizePct / 100) * H}px "${s.font}"`); } catch (e) {}
+
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d', { alpha: false });
+
+    const muxerCfg = {
+      target: new ArrayBufferTarget(),
+      video: { codec: 'avc', width: W, height: H },
+      fastStart: 'in-memory',
+      firstTimestampBehavior: 'offset',
+    };
+    if (audioAvailable) muxerCfg.audio = { codec: 'aac', sampleRate: 48000, numberOfChannels: 2 };
+    const muxer = new Muxer(muxerCfg);
+
+    let encoderError = null;
+    const videoEncoder = new VideoEncoder({
+      output: (chunk, meta) => { try { muxer.addVideoChunk(chunk, meta); } catch (e) { encoderError = e; } },
+      error: (e) => { encoderError = e; console.error('VideoEncoder:', e); },
+    });
+    // framerate=60 is a ceiling hint for rate control — actual playback speed is driven entirely by timestamps
+    videoEncoder.configure({ codec, width: W, height: H, bitrate, framerate: 60 });
+
+    // ── AUDIO PIPELINE (hardened) ────────────────────────────────────────────
+    let audioEncoder = null;
+    let audioCtx = null;
+    let audioReader = null;
+    let audioWorkletCleanup = null;
+    let audioFramesEncoded = 0;
+
+    if (audioAvailable) {
+      audioEncoder = new AudioEncoder({
+        output: (chunk, meta) => {
+          try { muxer.addAudioChunk(chunk, meta); audioFramesEncoded++; }
+          catch (e) { console.warn('audio mux:', e); }
+        },
+        error: (e) => console.warn('AudioEncoder:', e),
+      });
+      audioEncoder.configure(aConfig);
+
+      try {
+        // Create + explicitly resume (Chrome requires user-gesture-initiated resume;
+        // the Render button click IS a gesture, but context often starts suspended anyway)
+        audioCtx = new AudioContext({ sampleRate: 48000, latencyHint: 'playback' });
+        if (audioCtx.state === 'suspended') {
+          try { await audioCtx.resume(); } catch (e) { console.warn('AudioContext resume:', e); }
+        }
+        console.log('[audio] context state:', audioCtx.state, 'sampleRate:', audioCtx.sampleRate);
+
+        const source = audioCtx.createMediaElementSource(srcVideo);
+        const dest = audioCtx.createMediaStreamDestination();
+        source.connect(dest);
+        // Also connect to destination-at-zero-gain so some browsers actually pump samples
+        // (yes this is weird — some Chromium builds only run the graph when it's connected
+        // to the speaker output, even at gain=0)
+        const silentGain = audioCtx.createGain();
+        silentGain.gain.value = 0;
+        source.connect(silentGain).connect(audioCtx.destination);
+
+        const aTrack = dest.stream.getAudioTracks()[0];
+        console.log('[audio] track:', aTrack ? `${aTrack.label} · enabled=${aTrack.enabled} · muted=${aTrack.muted} · state=${aTrack.readyState}` : 'NONE');
+
+        if (!aTrack) throw new Error('No audio track produced by source');
+
+        // Prefer MediaStreamTrackProcessor when available (cleanest, lowest overhead)
+        if ('MediaStreamTrackProcessor' in window) {
+          console.log('[audio] using MediaStreamTrackProcessor');
+          const proc = new MediaStreamTrackProcessor({ track: aTrack });
+          audioReader = proc.readable.getReader();
+        } else {
+          // Fallback: AudioWorklet captures PCM, we manually build AudioData chunks
+          console.log('[audio] MediaStreamTrackProcessor missing, using AudioWorklet fallback');
+          const workletCode = `
+            class Capture extends AudioWorkletProcessor {
+              constructor() {
+                super();
+                this.buf = [[], []];
+                this.samples = 0;
+                this.chunkSize = 1024;
+              }
+              process(inputs) {
+                const input = inputs[0];
+                if (!input || !input[0]) return true;
+                const ch0 = input[0];
+                const ch1 = input[1] || input[0];
+                this.buf[0].push(new Float32Array(ch0));
+                this.buf[1].push(new Float32Array(ch1));
+                this.samples += ch0.length;
+                if (this.samples >= this.chunkSize) {
+                  const merge = (chunks) => {
+                    const out = new Float32Array(this.samples);
+                    let offset = 0;
+                    for (const c of chunks) { out.set(c, offset); offset += c.length; }
+                    return out;
+                  };
+                  this.port.postMessage({
+                    left: merge(this.buf[0]),
+                    right: merge(this.buf[1]),
+                    sampleRate: sampleRate,
+                    samples: this.samples,
+                  }, [/* transferables not supported here for plain objects */]);
+                  this.buf = [[], []];
+                  this.samples = 0;
+                }
+                return true;
+              }
+            }
+            registerProcessor('capture', Capture);
+          `;
+          const workletBlob = new Blob([workletCode], { type: 'application/javascript' });
+          const workletUrl = URL.createObjectURL(workletBlob);
+          await audioCtx.audioWorklet.addModule(workletUrl);
+          URL.revokeObjectURL(workletUrl);
+
+          const workletNode = new AudioWorkletNode(audioCtx, 'capture', {
+            numberOfInputs: 1, numberOfOutputs: 0, channelCount: 2,
+          });
+          source.connect(workletNode);
+
+          let audioTsSamples = 0;
+          workletNode.port.onmessage = (ev) => {
+            if (!audioEncoder || audioEncoder.state !== 'configured') return;
+            const { left, right, sampleRate, samples } = ev.data;
+            // Interleave L R L R for AudioData in 'f32' format
+            const interleaved = new Float32Array(samples * 2);
+            for (let i = 0; i < samples; i++) {
+              interleaved[i * 2]     = left[i];
+              interleaved[i * 2 + 1] = right[i];
+            }
+            try {
+              const ad = new AudioData({
+                format: 'f32',
+                sampleRate,
+                numberOfFrames: samples,
+                numberOfChannels: 2,
+                timestamp: Math.round((audioTsSamples / sampleRate) * 1_000_000),
+                data: interleaved,
+              });
+              audioEncoder.encode(ad);
+              ad.close();
+              audioTsSamples += samples;
+            } catch (e) { console.warn('AudioData encode:', e); }
+          };
+
+          audioWorkletCleanup = () => {
+            try { workletNode.port.onmessage = null; } catch (e) {}
+            try { workletNode.disconnect(); } catch (e) {}
+            try { source.disconnect(workletNode); } catch (e) {}
+          };
+        }
+      } catch (e) {
+        console.warn('[audio] pipeline setup failed:', e);
+      }
+    } else {
+      console.warn('[audio] AudioEncoder not supported — output will be silent');
+    }
+
+    srcVideo.currentTime = 0;
+    try { await srcVideo.play(); }
+    catch (e) { throw new Error('Playback blocked — click the page and try again'); }
+
+    // Pump audio in background — only used for MediaStreamTrackProcessor path.
+    // AudioWorklet path drives itself via port.onmessage.
+    const audioPump = (async () => {
+      if (!audioReader || !audioEncoder) return;
+      try {
+        while (true) {
+          const { value, done } = await audioReader.read();
+          if (done) break;
+          try {
+            if (audioEncoder.state === 'configured') audioEncoder.encode(value);
+          } catch (e) { console.warn('audio encode:', e); }
+          value.close();
+        }
+      } catch (e) { if (e.name !== 'AbortError') console.warn('audio pump:', e); }
+    })();
+
+    // Video frame loop via requestVideoFrameCallback
+    //  - fires once per actually-decoded video frame
+    //  - metadata.mediaTime is the exact presentation timestamp of this frame in the source
+    //  - no duplicates, no missed frames, pacing is driven by the decoder
+    let frameNum = 0;
+    let stopped = false;
+    let lastMediaTime = -1;
+
+    await new Promise((resolve) => {
+      const safety = setTimeout(() => { stopped = true; resolve(); }, (duration + 20) * 1000);
+
+      function onVideoFrame(_now, metadata) {
+        if (stopped || encoderError) { clearTimeout(safety); return resolve(); }
+
+        const mediaTime = metadata.mediaTime;
+
+        // mediaTime must be strictly increasing for VideoEncoder
+        if (mediaTime <= lastMediaTime) {
+          if (srcVideo.ended || mediaTime >= duration - 0.02) {
+            stopped = true; clearTimeout(safety); return resolve();
+          }
+          srcVideo.requestVideoFrameCallback(onVideoFrame);
+          return;
+        }
+        lastMediaTime = mediaTime;
+
+        try {
+          ctx.drawImage(srcVideo, 0, 0, W, H);
+          drawText(ctx, canvas, v.caption, s);
+          const timestamp = Math.round(mediaTime * 1_000_000);
+          const frame = new VideoFrame(canvas, { timestamp });
+          videoEncoder.encode(frame, { keyFrame: frameNum % 60 === 0 });
+          frame.close();
+          frameNum++;
+        } catch (e) { console.error('frame encode:', e); }
+
+        if (onProgress && duration) onProgress(Math.min(1, mediaTime / duration));
+
+        if (srcVideo.ended || mediaTime >= duration - 0.02) {
+          stopped = true; clearTimeout(safety); return resolve();
+        }
+        srcVideo.requestVideoFrameCallback(onVideoFrame);
+      }
+
+      srcVideo.requestVideoFrameCallback(onVideoFrame);
+    });
+
+    try { srcVideo.pause(); } catch (e) {}
+    if (audioReader) { try { await audioReader.cancel(); } catch (e) {} }
+    if (audioWorkletCleanup) { try { audioWorkletCleanup(); } catch (e) {} }
+    await audioPump;
+
+    try { await videoEncoder.flush(); } catch (e) { console.warn('video flush:', e); }
+    if (audioEncoder) { try { await audioEncoder.flush(); } catch (e) { console.warn('audio flush:', e); } }
+    try { videoEncoder.close(); } catch (e) {}
+    if (audioEncoder) { try { audioEncoder.close(); } catch (e) {} }
+    if (audioCtx) { try { await audioCtx.close(); } catch (e) {} }
+
+    if (audioAvailable && audioFramesEncoded === 0) {
+      console.warn('[audio] ⚠ no audio frames were encoded — output will be silent. Check whether the source has an audio track and the browser allowed it.');
+    } else if (audioAvailable) {
+      console.log('[audio] ✓ encoded', audioFramesEncoded, 'audio chunks');
+    }
+
+    if (encoderError) throw encoderError;
+
+    muxer.finalize();
+    return new Blob([muxer.target.buffer], { type: 'video/mp4' });
+  } finally {
+    try { srcVideo.remove(); } catch (e) {}
+  }
 }
 
 /* Webm fallback (old browsers without WebCodecs) — kept renderOneVideo from before */
