@@ -328,7 +328,7 @@
   <div class="panel-h"><h2>4 · Render</h2></div>
   <div class="render-bar">
     <div id="qualityInfo" style="font-size:12px;color:var(--muted-2);padding:6px 12px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;white-space:nowrap;">
-      MP4 · H.264 · up to 20 Mbps
+      MP4 · H.264 · Instagram-optimized
     </div>
     <button id="renderBtn" class="primary" disabled>Add videos to start</button>
   </div>
@@ -841,13 +841,16 @@ async function loadMp4Muxer() {
   return loadMp4Muxer._p;
 }
 
-// Quality tiers keyed on pixel count
+// Quality tiers keyed on pixel count.
+// Instagram/TikTok's own upload recommendations max out around 8 Mbps for 1080p;
+// they recompress everything server-side anyway so higher bitrates are just wasted bytes.
+// These tiers are "visually transparent" for social — anything higher is imperceptible after upload.
 function pickMp4Settings(W, H) {
   const pixels = W * H;
-  if (pixels > 2560 * 1440) return { codec: 'avc1.640033', bitrate: 40_000_000 }; // 4K: Level 5.1
-  if (pixels > 1920 * 1088) return { codec: 'avc1.640032', bitrate: 28_000_000 }; // 1440p: Level 5.0
-  if (pixels > 1280 *  720) return { codec: 'avc1.640028', bitrate: 20_000_000 }; // 1080p: Level 4.0
-  return                        { codec: 'avc1.640020', bitrate: 10_000_000 }; // 720p: Level 3.2
+  if (pixels > 2560 * 1440) return { codec: 'avc1.640033', bitrate: 20_000_000 }; // 4K:    20 Mbps
+  if (pixels > 1920 * 1088) return { codec: 'avc1.640032', bitrate: 14_000_000 }; // 1440p: 14 Mbps
+  if (pixels > 1280 *  720) return { codec: 'avc1.640028', bitrate:  8_000_000 }; // 1080p:  8 Mbps
+  return                        { codec: 'avc1.640020', bitrate:  4_500_000 }; // 720p:  4.5 Mbps
 }
 
 async function renderVideoToMp4(v, s, onProgress) {
@@ -889,11 +892,32 @@ async function renderVideoToMp4(v, s, onProgress) {
     const vSupport = await VideoEncoder.isConfigSupported({ codec, width: W, height: H, bitrate, framerate: 60 });
     if (!vSupport.supported) throw new Error(`VideoEncoder cannot produce ${W}x${H} @ ${codec}`);
 
-    const aConfig = { codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, bitrate: 192_000 };
-    const aSupport = await AudioEncoder.isConfigSupported(aConfig);
-    // We'll attempt audio as long as AudioEncoder is supported; MediaStreamTrackProcessor is
-    // preferred, but we have an AudioWorklet fallback for browsers that lack it.
-    const audioAvailable = aSupport.supported;
+    // Try a ladder of AAC configs — different Chrome builds / platforms support different variants.
+    // We go from "best" to "most compatible" and pick the first one that works.
+    const aacCandidates = [
+      { codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, bitrate: 192_000 }, // AAC-LC 48k stereo
+      { codec: 'mp4a.40.2', sampleRate: 44100, numberOfChannels: 2, bitrate: 192_000 }, // AAC-LC 44.1k stereo
+      { codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, bitrate: 128_000 }, // AAC-LC 48k stereo, lower bitrate
+      { codec: 'mp4a.40.2', sampleRate: 44100, numberOfChannels: 2, bitrate: 128_000 }, // AAC-LC 44.1k stereo, lower bitrate
+      { codec: 'mp4a.40.5', sampleRate: 48000, numberOfChannels: 2, bitrate: 128_000 }, // HE-AAC 48k stereo
+      { codec: 'mp4a.40.5', sampleRate: 44100, numberOfChannels: 2, bitrate: 128_000 }, // HE-AAC 44.1k stereo
+      { codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 1, bitrate:  96_000 }, // AAC-LC 48k mono
+      { codec: 'mp4a.40.2', sampleRate: 44100, numberOfChannels: 1, bitrate:  96_000 }, // AAC-LC 44.1k mono
+    ];
+    let aConfig = null;
+    for (const candidate of aacCandidates) {
+      try {
+        const s = await AudioEncoder.isConfigSupported(candidate);
+        if (s.supported) { aConfig = candidate; break; }
+      } catch (e) { /* keep trying */ }
+    }
+    const audioAvailable = !!aConfig;
+    if (aConfig) {
+      console.log('[audio] AAC config chosen:', aConfig.codec, aConfig.sampleRate + 'Hz',
+                  aConfig.numberOfChannels + 'ch', (aConfig.bitrate / 1000) + 'kbps');
+    } else {
+      console.warn('[audio] No supported AAC config on this browser — output will be silent');
+    }
 
     // Preload the font so the first frames render with the right glyphs
     try { await document.fonts.load(`${s.weight} ${(s.fontSizePct / 100) * H}px "${s.font}"`); } catch (e) {}
@@ -909,7 +933,9 @@ async function renderVideoToMp4(v, s, onProgress) {
       fastStart: 'in-memory',
       firstTimestampBehavior: 'offset',
     };
-    if (audioAvailable) muxerCfg.audio = { codec: 'aac', sampleRate: 48000, numberOfChannels: 2 };
+    if (audioAvailable) {
+      muxerCfg.audio = { codec: 'aac', sampleRate: aConfig.sampleRate, numberOfChannels: aConfig.numberOfChannels };
+    }
     const muxer = new Muxer(muxerCfg);
 
     let encoderError = null;
@@ -938,9 +964,8 @@ async function renderVideoToMp4(v, s, onProgress) {
       audioEncoder.configure(aConfig);
 
       try {
-        // Create + explicitly resume (Chrome requires user-gesture-initiated resume;
-        // the Render button click IS a gesture, but context often starts suspended anyway)
-        audioCtx = new AudioContext({ sampleRate: 48000, latencyHint: 'playback' });
+        // Create + explicitly resume — match the sample rate of the chosen AAC config
+        audioCtx = new AudioContext({ sampleRate: aConfig.sampleRate, latencyHint: 'playback' });
         if (audioCtx.state === 'suspended') {
           try { await audioCtx.resume(); } catch (e) { console.warn('AudioContext resume:', e); }
         }
@@ -1012,26 +1037,31 @@ async function renderVideoToMp4(v, s, onProgress) {
           URL.revokeObjectURL(workletUrl);
 
           const workletNode = new AudioWorkletNode(audioCtx, 'capture', {
-            numberOfInputs: 1, numberOfOutputs: 0, channelCount: 2,
+            numberOfInputs: 1, numberOfOutputs: 0, channelCount: aConfig.numberOfChannels,
           });
           source.connect(workletNode);
 
+          const numChannels = aConfig.numberOfChannels;
           let audioTsSamples = 0;
           workletNode.port.onmessage = (ev) => {
             if (!audioEncoder || audioEncoder.state !== 'configured') return;
             const { left, right, sampleRate, samples } = ev.data;
-            // Interleave L R L R for AudioData in 'f32' format
-            const interleaved = new Float32Array(samples * 2);
-            for (let i = 0; i < samples; i++) {
-              interleaved[i * 2]     = left[i];
-              interleaved[i * 2 + 1] = right[i];
+            // Build interleaved PCM for AudioData — mono uses just left channel
+            const interleaved = new Float32Array(samples * numChannels);
+            if (numChannels === 1) {
+              interleaved.set(left);
+            } else {
+              for (let i = 0; i < samples; i++) {
+                interleaved[i * 2]     = left[i];
+                interleaved[i * 2 + 1] = right[i];
+              }
             }
             try {
               const ad = new AudioData({
                 format: 'f32',
                 sampleRate,
                 numberOfFrames: samples,
-                numberOfChannels: 2,
+                numberOfChannels: numChannels,
                 timestamp: Math.round((audioTsSamples / sampleRate) * 1_000_000),
                 data: interleaved,
               });
@@ -1051,7 +1081,7 @@ async function renderVideoToMp4(v, s, onProgress) {
         console.warn('[audio] pipeline setup failed:', e);
       }
     } else {
-      console.warn('[audio] AudioEncoder not supported — output will be silent');
+      console.warn('[audio] AudioEncoder: no supported AAC config found — output will be silent');
     }
 
     srcVideo.currentTime = 0;
@@ -1067,7 +1097,53 @@ async function renderVideoToMp4(v, s, onProgress) {
           const { value, done } = await audioReader.read();
           if (done) break;
           try {
-            if (audioEncoder.state === 'configured') audioEncoder.encode(value);
+            if (audioEncoder.state === 'configured') {
+              // If the incoming AudioData's channel count matches what the encoder expects, just pass it through.
+              // If not (e.g. source is stereo but we chose a mono AAC config), downmix manually.
+              if (value.numberOfChannels === aConfig.numberOfChannels) {
+                audioEncoder.encode(value);
+              } else {
+                const samples = value.numberOfFrames;
+                const sr = value.sampleRate;
+                const targetCh = aConfig.numberOfChannels;
+                const buf = new Float32Array(samples * targetCh);
+
+                if (targetCh === 1 && value.numberOfChannels >= 2) {
+                  // Downmix to mono: average channel 0 and channel 1
+                  const ch0 = new Float32Array(samples);
+                  const ch1 = new Float32Array(samples);
+                  value.copyTo(ch0, { planeIndex: 0, format: 'f32-planar' });
+                  value.copyTo(ch1, { planeIndex: 1, format: 'f32-planar' });
+                  for (let i = 0; i < samples; i++) buf[i] = (ch0[i] + ch1[i]) * 0.5;
+                } else if (targetCh === 2 && value.numberOfChannels === 1) {
+                  // Upmix mono to stereo: duplicate channel
+                  const ch0 = new Float32Array(samples);
+                  value.copyTo(ch0, { planeIndex: 0, format: 'f32-planar' });
+                  for (let i = 0; i < samples; i++) {
+                    buf[i * 2]     = ch0[i];
+                    buf[i * 2 + 1] = ch0[i];
+                  }
+                } else {
+                  // Any other case: just copy the first channel
+                  const ch0 = new Float32Array(samples);
+                  value.copyTo(ch0, { planeIndex: 0, format: 'f32-planar' });
+                  for (let c = 0; c < targetCh; c++) {
+                    for (let i = 0; i < samples; i++) buf[i * targetCh + c] = ch0[i];
+                  }
+                }
+
+                const ad = new AudioData({
+                  format: 'f32',
+                  sampleRate: sr,
+                  numberOfFrames: samples,
+                  numberOfChannels: targetCh,
+                  timestamp: value.timestamp,
+                  data: buf,
+                });
+                audioEncoder.encode(ad);
+                ad.close();
+              }
+            }
           } catch (e) { console.warn('audio encode:', e); }
           value.close();
         }
