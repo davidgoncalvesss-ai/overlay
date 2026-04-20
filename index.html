@@ -842,15 +842,16 @@ async function loadMp4Muxer() {
 }
 
 // Quality tiers keyed on pixel count.
-// Instagram/TikTok's own upload recommendations max out around 8 Mbps for 1080p;
-// they recompress everything server-side anyway so higher bitrates are just wasted bytes.
-// These tiers are "visually transparent" for social — anything higher is imperceptible after upload.
+// Slightly above Instagram/TikTok's nominal upload max, tuned for text overlays —
+// sharp caption edges (outlines, solid backgrounds) eat more bits than raw footage.
+// Still well below the 20 Mbps territory where you're just uploading bytes the
+// platform throws away during re-encode.
 function pickMp4Settings(W, H) {
   const pixels = W * H;
-  if (pixels > 2560 * 1440) return { codec: 'avc1.640033', bitrate: 20_000_000 }; // 4K:    20 Mbps
-  if (pixels > 1920 * 1088) return { codec: 'avc1.640032', bitrate: 14_000_000 }; // 1440p: 14 Mbps
-  if (pixels > 1280 *  720) return { codec: 'avc1.640028', bitrate:  8_000_000 }; // 1080p:  8 Mbps
-  return                        { codec: 'avc1.640020', bitrate:  4_500_000 }; // 720p:  4.5 Mbps
+  if (pixels > 2560 * 1440) return { codec: 'avc1.640033', bitrate: 24_000_000 }; // 4K:    24 Mbps
+  if (pixels > 1920 * 1088) return { codec: 'avc1.640032', bitrate: 16_000_000 }; // 1440p: 16 Mbps
+  if (pixels > 1280 *  720) return { codec: 'avc1.640028', bitrate: 10_000_000 }; // 1080p: 10 Mbps
+  return                        { codec: 'avc1.640020', bitrate:  5_500_000 }; // 720p:  5.5 Mbps
 }
 
 async function renderVideoToMp4(v, s, onProgress) {
